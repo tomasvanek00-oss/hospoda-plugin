@@ -319,123 +319,130 @@ JS;
             wp_register_script('hospoda-admin-branding', false, ['jquery', 'media-editor'], VERSION, true);
             wp_enqueue_script('hospoda-admin-branding');
             $branding_js = <<<'JS'
-        jQuery(function($){
-          if (typeof wp === 'undefined' || !wp.media || !wp.media.attachment) {
-            return;
-          }
+        (function($){
+          $(function(){
+            var frame;
+            var $field = $('#hs-branding-logo-id');
+            var $preview = $('#hs-branding-logo-preview');
+            var $remove = $('.hs-branding-remove');
+            var initialUrl = $preview.data('currentUrl') || '';
 
-          var frame;
-          var $field = $('#hs-branding-logo-id');
-          var $preview = $('#hs-branding-logo-preview');
-          var $remove = $('.hs-branding-remove');
-          var initialUrl = $preview.data('currentUrl') || '';
+            function resolveUrl(data){
+              if (!data) {
+                return '';
+              }
+              var sizes = data.sizes || {};
+              if (sizes.medium && sizes.medium.url) {
+                return sizes.medium.url;
+              }
+              if (sizes.medium_large && sizes.medium_large.url) {
+                return sizes.medium_large.url;
+              }
+              if (sizes.large && sizes.large.url) {
+                return sizes.large.url;
+              }
+              if (sizes.full && sizes.full.url) {
+                return sizes.full.url;
+              }
+              return data.url || '';
+            }
 
-          function resolveUrl(data){
-            if (!data) {
-              return '';
+            function render(url){
+              if (url) {
+                $preview.data('currentUrl', url);
+                $preview.html('<img src="' + url.replace(/"/g, '&quot;') + '" alt="">');
+                $remove.prop('disabled', false);
+              } else {
+                $preview.data('currentUrl', '');
+                $preview.html('<span>Žádné logo</span>');
+                $remove.prop('disabled', true);
+              }
             }
-            var sizes = data.sizes || {};
-            if (sizes.medium && sizes.medium.url) {
-              return sizes.medium.url;
-            }
-            if (sizes.medium_large && sizes.medium_large.url) {
-              return sizes.medium_large.url;
-            }
-            if (sizes.large && sizes.large.url) {
-              return sizes.large.url;
-            }
-            if (sizes.full && sizes.full.url) {
-              return sizes.full.url;
-            }
-            return data.url || '';
-          }
 
-          function render(url){
-            if (url) {
-              $preview.data('currentUrl', url);
-              $preview.html('<img src="' + url.replace(/"/g, '&quot;') + '" alt="">');
-              $remove.prop('disabled', false);
-            } else {
-              $preview.data('currentUrl', '');
-              $preview.html('<span>Žádné logo</span>');
-              $remove.prop('disabled', true);
-            }
-          }
+            function ensureFrame(){
+              if (typeof wp === 'undefined' || !wp.media || !wp.media.attachment) {
+                return null;
+              }
 
-          function ensureFrame(){
-            if (frame) {
+              if (!frame) {
+                frame = wp.media.frames.hsBranding = wp.media({
+                  className: 'media-frame hs-branding-frame',
+                  frame: 'select',
+                  title: 'Vyberte logo',
+                  library: { type: 'image' },
+                  button: { text: 'Použít logo' },
+                  multiple: false
+                });
+
+                frame.on('open', function(){
+                  var selection = frame.state().get('selection');
+                  var currentId = parseInt($field.val(), 10);
+                  if (currentId) {
+                    var attachment = wp.media.attachment(currentId);
+                    if (attachment) {
+                      if (attachment.fetch) {
+                        attachment.fetch();
+                      }
+                      selection.reset([attachment]);
+                    }
+                  }
+                });
+
+                frame.on('select', function(){
+                  var attachment = frame.state().get('selection').first();
+                  if (!attachment) {
+                    return;
+                  }
+                  attachment = attachment.toJSON();
+                  $field.val(attachment.id);
+                  render(resolveUrl(attachment));
+                });
+              }
+
               return frame;
             }
 
-            frame = wp.media.frames.hsBranding = wp.media({
-              className: 'media-frame hs-branding-frame',
-              frame: 'select',
-              title: 'Vyberte logo',
-              library: { type: 'image' },
-              button: { text: 'Použít logo' },
-              multiple: false
-            });
-
-            frame.on('open', function(){
-              var selection = frame.state().get('selection');
-              var currentId = parseInt($field.val(), 10);
-              if (currentId) {
-                var attachment = wp.media.attachment(currentId);
-                if (attachment) {
-                  if (attachment.fetch) {
-                    attachment.fetch();
-                  }
-                  selection.reset([attachment]);
-                }
-              }
-            });
-
-            frame.on('select', function(){
-              var attachment = frame.state().get('selection').first();
-              if (!attachment) {
+            $('.hs-branding-select').on('click', function(event){
+              event.preventDefault();
+              var mediaFrame = ensureFrame();
+              if (!mediaFrame) {
+                window.alert('Knihovnu médií se nepodařilo načíst. Zkuste prosím obnovit stránku.');
                 return;
               }
-              attachment = attachment.toJSON();
-              $field.val(attachment.id);
-              render(resolveUrl(attachment));
+              mediaFrame.open();
             });
 
-            return frame;
-          }
+            $remove.on('click', function(event){
+              event.preventDefault();
+              $field.val('');
+              render('');
+            });
 
-          $('.hs-branding-select').on('click', function(event){
-            event.preventDefault();
-            ensureFrame().open();
-          });
-
-          $remove.on('click', function(event){
-            event.preventDefault();
-            $field.val('');
-            render('');
-          });
-
-          if ($field.val()) {
-            if (initialUrl) {
-              render(initialUrl);
-            } else {
-              var attachmentId = parseInt($field.val(), 10);
-              if (attachmentId) {
-                var attachment = wp.media.attachment(attachmentId);
-                if (attachment && attachment.fetch) {
-                  attachment.fetch().done(function(){
-                    render(resolveUrl(attachment.toJSON()));
-                  }).fail(function(){
-                    render('');
-                  });
+            if ($field.val()) {
+              if (initialUrl) {
+                render(initialUrl);
+              } else {
+                var attachmentId = parseInt($field.val(), 10);
+                if (attachmentId) {
+                  var attachment = (typeof wp !== 'undefined' && wp.media && wp.media.attachment)
+                    ? wp.media.attachment(attachmentId)
+                    : null;
+                  if (attachment && attachment.fetch) {
+                    attachment.fetch().done(function(){
+                      render(resolveUrl(attachment.toJSON()));
+                    }).fail(function(){
+                      render('');
+                    });
+                  }
                 }
               }
+            } else {
+              render('');
             }
-          } else {
-            render('');
-          }
-        });
+          });
+        })(jQuery);
 JS;
-            wp_add_inline_script('hospoda-admin-branding', $branding_js);
+            wp_add_inline_script('hospoda-admin-branding', $branding_js, 'after');
         }
     }
 
