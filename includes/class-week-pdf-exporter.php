@@ -73,9 +73,6 @@ class Week_Pdf_Exporter {
             }
         }
 
-        $generated = 'Vygenerováno: ' . $this->formatDate(date('Y-m-d'));
-        $pdf->add_text($generated, ['size' => 10.0, 'spacing_after' => 0.0]);
-
         return $pdf->output();
     }
 

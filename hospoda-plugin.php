@@ -320,16 +320,40 @@ JS;
             wp_enqueue_script('hospoda-admin-branding');
             $branding_js = <<<'JS'
         jQuery(function($){
+          if (typeof wp === 'undefined' || !wp.media || !wp.media.attachment) {
+            return;
+          }
+
           var frame;
           var $field = $('#hs-branding-logo-id');
           var $preview = $('#hs-branding-logo-preview');
           var $remove = $('.hs-branding-remove');
+          var initialUrl = $preview.data('currentUrl') || '';
+
+          function resolveUrl(data){
+            if (!data) {
+              return '';
+            }
+            var sizes = data.sizes || {};
+            if (sizes.medium && sizes.medium.url) {
+              return sizes.medium.url;
+            }
+            if (sizes.large && sizes.large.url) {
+              return sizes.large.url;
+            }
+            if (sizes.full && sizes.full.url) {
+              return sizes.full.url;
+            }
+            return data.url || '';
+          }
 
           function render(url){
             if (url) {
+              $preview.data('currentUrl', url);
               $preview.html('<img src="' + url.replace(/"/g, '&quot;') + '" alt="">');
               $remove.prop('disabled', false);
             } else {
+              $preview.data('currentUrl', '');
               $preview.html('<span>Žádné logo</span>');
               $remove.prop('disabled', true);
             }
@@ -337,20 +361,35 @@ JS;
 
           $('.hs-branding-select').on('click', function(e){
             e.preventDefault();
-            if (frame) {
-              frame.open();
-              return;
+            if (!frame) {
+              frame = wp.media({
+                title: 'Vyberte logo',
+                button: { text: 'Použít logo' },
+                library: { type: 'image' },
+                multiple: false
+              });
+              frame.on('open', function(){
+                var selection = frame.state().get('selection');
+                var currentId = parseInt($field.val(), 10);
+                if (currentId) {
+                  var attachment = wp.media.attachment(currentId);
+                  if (attachment) {
+                    attachment.fetch();
+                    selection.reset([attachment]);
+                  }
+                }
+              });
+              frame.on('select', function(){
+                var attachment = frame.state().get('selection').first();
+                if (!attachment) {
+                  return;
+                }
+                attachment = attachment.toJSON();
+                $field.val(attachment.id);
+                render(resolveUrl(attachment));
+              });
             }
-            frame = wp.media({
-              title: 'Vyberte logo',
-              button: { text: 'Použít logo' },
-              library: { type: 'image' }
-            });
-            frame.on('select', function(){
-              var attachment = frame.state().get('selection').first().toJSON();
-              $field.val(attachment.id);
-              render(attachment.url || '');
-            });
+
             frame.open();
           });
 
@@ -360,7 +399,11 @@ JS;
             render('');
           });
 
-          if (!$field.val()) {
+          if ($field.val()) {
+            if (initialUrl) {
+              render(initialUrl);
+            }
+          } else {
             render('');
           }
         });
@@ -826,7 +869,7 @@ JS;
             <?php wp_nonce_field('hospoda_save_branding'); ?>
             <input type="hidden" name="action" value="hospoda_save_branding">
             <div class="hs-branding__logo">
-              <div id="hs-branding-logo-preview" class="hs-branding__preview">
+              <div id="hs-branding-logo-preview" class="hs-branding__preview" data-current-url="<?php echo esc_attr($logo_url); ?>">
                 <?php if ($logo_url) : ?>
                   <img src="<?php echo esc_url($logo_url); ?>" alt="">
                 <?php else : ?>
@@ -850,7 +893,7 @@ JS;
             <p>
               <label for="hs-branding-bottom"><strong>Text v patičce</strong></label><br>
               <textarea name="branding_bottom" id="hs-branding-bottom" rows="4" class="large-text code"><?php echo esc_textarea($branding['bottom_text']); ?></textarea>
-              <span class="description">Řádky se zobrazí pod seznamem jídel před informací o datu vygenerování.</span>
+              <span class="description">Řádky se zobrazí pod seznamem jídel v patičce PDF.</span>
             </p>
             <p>
               <button type="submit" class="button button-primary">Uložit nastavení PDF</button>
