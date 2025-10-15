@@ -187,24 +187,33 @@ class Hospoda_Plugin {
             'dashicons-list-view',    // icon
             6                         // position
         );
+
+        add_submenu_page(
+            'hospoda-week',
+            'Nastavení exportu',
+            'Nastavení exportu',
+            'edit_posts',
+            'hospoda-week-branding',
+            [$this,'render_branding_admin_page']
+        );
     }
 
     /**
      * Load admin CSS and JS
      */
     public function admin_assets($hook) {
-        // Always load on admin for reliability; if needed, we can narrow later.
-        // Previously guarded by $hook which may differ across setups.
+        $is_week_page = ($hook === 'toplevel_page_hospoda-week');
+        $is_branding_page = ($hook === 'hospoda-week_page_hospoda-week-branding');
+
         wp_enqueue_style('hospoda-admin', false, [], VERSION);
-        $css = '.hs-mains .row.main{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px}.hs-mains .row.main input.meal-autocomplete{min-width:260px}.hs-mains .row.main input.price{width:90px}.hs-mains .sides label{margin-right:10px;white-space:nowrap;display:inline-block}.hs-week-day{border:1px solid #ddd;padding:12px;margin-top:14px;background:#fff}.hs-week-day legend{font-weight:600}.hs-week-actions{display:flex;gap:10px;align-items:center;margin-top:18px}';
-        wp_add_inline_style('hospoda-admin',$css);
-        $css2 = '.ui-autocomplete{z-index:100000 !important; background:#fff; border:1px solid #ccd0d4; box-shadow:0 2px 6px rgba(0,0,0,.1)} .ui-autocomplete .ui-menu-item-wrapper{padding:6px 10px} .ui-state-active{background:#f0f6ff}';
-        wp_add_inline_style('hospoda-admin',$css2);
-        $css3 = '.hs-branding{margin:20px 0;padding:20px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;max-width:960px}.hs-branding h2{margin-top:0}.hs-branding__logo{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.hs-branding__preview{width:160px;min-height:120px;border:1px dashed #ccd0d4;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden}.hs-branding__preview img{max-width:100%;height:auto;display:block}.hs-branding__preview span{color:#777;font-style:italic}.hs-branding__buttons{display:flex;gap:8px;flex-wrap:wrap}.hs-branding textarea{max-width:100%}.hs-branding .description{margin-top:4px;color:#555}';
-        wp_add_inline_style('hospoda-admin',$css3);
-        wp_enqueue_media();
-        wp_enqueue_script('jquery-ui-autocomplete');
-        $js = <<<'JS'
+
+        if ($is_week_page) {
+            $css = '.hs-mains .row.main{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px}.hs-mains .row.main input.meal-autocomplete{min-width:260px}.hs-mains .row.main input.price{width:90px}.hs-mains .sides label{margin-right:10px;white-space:nowrap;display:inline-block}.hs-week-day{border:1px solid #ddd;padding:12px;margin-top:14px;background:#fff}.hs-week-day legend{font-weight:600}.hs-week-actions{display:flex;gap:10px;align-items:center;margin-top:18px}';
+            wp_add_inline_style('hospoda-admin',$css);
+            $css2 = '.ui-autocomplete{z-index:100000 !important; background:#fff; border:1px solid #ccd0d4; box-shadow:0 2px 6px rgba(0,0,0,.1)} .ui-autocomplete .ui-menu-item-wrapper{padding:6px 10px} .ui-state-active{background:#f0f6ff}';
+            wp_add_inline_style('hospoda-admin',$css2);
+            wp_enqueue_script('jquery-ui-autocomplete');
+            $js = <<<'JS'
         (function($){
           function attachAutocomplete($ctx){
             $ctx.find('.meal-autocomplete').each(function(){
@@ -299,11 +308,17 @@ class Hospoda_Plugin {
           $(function(){ attachAutocomplete($(document)); });
         })(jQuery);
 JS;
-        wp_localize_script('jquery-ui-autocomplete','HOSPOS',['nonce'=>wp_create_nonce('hospoda_meal_search')]);
-        wp_add_inline_script('jquery-ui-autocomplete',$js);
-        wp_register_script('hospoda-admin-branding', false, ['jquery'], VERSION, true);
-        wp_enqueue_script('hospoda-admin-branding');
-        $branding_js = <<<'JS'
+            wp_localize_script('jquery-ui-autocomplete','HOSPOS',['nonce'=>wp_create_nonce('hospoda_meal_search')]);
+            wp_add_inline_script('jquery-ui-autocomplete',$js);
+        }
+
+        if ($is_branding_page) {
+            $css3 = '.hs-branding{margin:20px 0;padding:20px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;max-width:960px}.hs-branding h2{margin-top:0}.hs-branding__logo{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.hs-branding__preview{width:160px;min-height:120px;border:1px dashed #ccd0d4;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden}.hs-branding__preview img{max-width:100%;height:auto;display:block}.hs-branding__preview span{color:#777;font-style:italic}.hs-branding__buttons{display:flex;gap:8px;flex-wrap:wrap}.hs-branding textarea{max-width:100%}.hs-branding .description{margin-top:4px;color:#555}';
+            wp_add_inline_style('hospoda-admin',$css3);
+            wp_enqueue_media();
+            wp_register_script('hospoda-admin-branding', false, ['jquery'], VERSION, true);
+            wp_enqueue_script('hospoda-admin-branding');
+            $branding_js = <<<'JS'
         jQuery(function($){
           var frame;
           var $field = $('#hs-branding-logo-id');
@@ -350,7 +365,8 @@ JS;
           }
         });
 JS;
-        wp_add_inline_script('hospoda-admin-branding', $branding_js);
+            wp_add_inline_script('hospoda-admin-branding', $branding_js);
+        }
     }
 
     private function get_pdf_branding_defaults(): array {
@@ -765,20 +781,48 @@ JS;
         $sides = $week['sides_terms'];
         $monday = $week['monday'];
         $day_count = count($dates);
-        $branding = $this->get_pdf_branding_settings();
-        $logo_id = (int)($branding['logo_id'] ?? 0);
-        $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : '';
         ?>
         <div class="wrap">
           <h1>Týdenní menu</h1>
           <?php if (isset($_GET['saved'])) : ?>
             <div class="notice notice-success is-dismissible"><p>Týdenní menu bylo uloženo.</p></div>
           <?php endif; ?>
+          <p>
+            <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=hospoda-week-branding')); ?>">Nastavení PDF exportu</a>
+          </p>
+          <form class="hs-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+            <?php wp_nonce_field('hospoda_save_week'); ?>
+            <input type="hidden" name="action" value="hospoda_save_week">
+            <label>Týden od (pondělí):</label>
+            <input id="hs-week-start" type="date" name="week_start" value="<?php echo esc_attr($monday); ?>">
+            <span class="description">Změnou data se načte zvolený týden (pondělí–pátek) bez uložení.</span>
+            <?php for($i=0;$i<$day_count;$i++){ $this->render_week_day_block($i,$labels[$i] ?? '',$dates[$i] ?? '',$sides,$days_data[$i] ?? []); } ?>
+            <div class="hs-week-actions">
+              <button class="button button-primary">Uložit celý týden</button>
+              <button type="submit" form="hs-week-export" class="button">Exportovat PDF</button>
+            </div>
+          </form>
+          <form id="hs-week-export" class="hs-export-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" target="_blank">
+            <?php wp_nonce_field('hospoda_export_week_pdf','hospoda_export_week_pdf_nonce'); ?>
+            <input type="hidden" name="action" value="hospoda_export_week_pdf">
+            <input type="hidden" name="week_start" value="<?php echo esc_attr($monday); ?>">
+          </form>
+        </div>
+        <?php
+    }
+
+    public function render_branding_admin_page() {
+        $branding = $this->get_pdf_branding_settings();
+        $logo_id = (int)($branding['logo_id'] ?? 0);
+        $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : '';
+        ?>
+        <div class="wrap">
+          <h1>Nastavení PDF exportu</h1>
+          <p class="description">Nastavení použité při generování týdenního jídelního lístku do PDF.</p>
           <?php if (isset($_GET['branding_saved'])) : ?>
             <div class="notice notice-success is-dismissible"><p>Nastavení PDF exportu bylo uloženo.</p></div>
           <?php endif; ?>
           <form class="hs-branding" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-            <h2>Nastavení PDF exportu</h2>
             <?php wp_nonce_field('hospoda_save_branding'); ?>
             <input type="hidden" name="action" value="hospoda_save_branding">
             <div class="hs-branding__logo">
@@ -809,25 +853,9 @@ JS;
               <span class="description">Řádky se zobrazí pod seznamem jídel před informací o datu vygenerování.</span>
             </p>
             <p>
-              <button type="submit" class="button button-secondary">Uložit nastavení PDF</button>
+              <button type="submit" class="button button-primary">Uložit nastavení PDF</button>
+              <a class="button button-secondary" href="<?php echo esc_url(admin_url('admin.php?page=hospoda-week')); ?>">Zpět na týdenní menu</a>
             </p>
-          </form>
-          <form class="hs-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-            <?php wp_nonce_field('hospoda_save_week'); ?>
-            <input type="hidden" name="action" value="hospoda_save_week">
-            <label>Týden od (pondělí):</label>
-            <input id="hs-week-start" type="date" name="week_start" value="<?php echo esc_attr($monday); ?>">
-            <span class="description">Změnou data se načte zvolený týden (pondělí–pátek) bez uložení.</span>
-            <?php for($i=0;$i<$day_count;$i++){ $this->render_week_day_block($i,$labels[$i] ?? '',$dates[$i] ?? '',$sides,$days_data[$i] ?? []); } ?>
-            <div class="hs-week-actions">
-              <button class="button button-primary">Uložit celý týden</button>
-              <button type="submit" form="hs-week-export" class="button">Exportovat PDF</button>
-            </div>
-          </form>
-          <form id="hs-week-export" class="hs-export-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" target="_blank">
-            <?php wp_nonce_field('hospoda_export_week_pdf','hospoda_export_week_pdf_nonce'); ?>
-            <input type="hidden" name="action" value="hospoda_export_week_pdf">
-            <input type="hidden" name="week_start" value="<?php echo esc_attr($monday); ?>">
           </form>
         </div>
         <?php
@@ -913,7 +941,7 @@ JS;
 
         update_option('hsp_pdf_branding', $data, false);
 
-        wp_redirect(admin_url('admin.php?page=hospoda-week&branding_saved=1'));
+        wp_redirect(admin_url('admin.php?page=hospoda-week-branding&branding_saved=1'));
         exit;
     }
 
