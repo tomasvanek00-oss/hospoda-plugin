@@ -79,9 +79,6 @@ class Simple_Pdf {
             $availableWidthMm = self::PAGE_WIDTH_MM - $this->marginLeftMm - $this->marginRightMm;
         }
 
-        $previousLeft = $this->pdf->lMargin;
-        $previousRight = $this->pdf->rMargin;
-
         $targetLeft = $this->marginLeftMm + $indentMm;
         if ($align === 'C' || $align === 'R') {
             $targetLeft = $this->marginLeftMm;
@@ -91,9 +88,9 @@ class Simple_Pdf {
         $this->pdf->SetRightMargin($this->marginRightMm);
         $this->pdf->SetX($targetLeft);
         $this->pdf->MultiCell($availableWidthMm, $lineHeightMm, $text, 0, $align);
-        $this->pdf->SetLeftMargin($previousLeft);
-        $this->pdf->SetRightMargin($previousRight);
-        $this->pdf->SetX($previousLeft);
+        $this->pdf->SetLeftMargin($this->marginLeftMm);
+        $this->pdf->SetRightMargin($this->marginRightMm);
+        $this->pdf->SetX($this->marginLeftMm);
 
         if ($spacingAfterMm > 0) {
             $this->pdf->Ln($spacingAfterMm);
