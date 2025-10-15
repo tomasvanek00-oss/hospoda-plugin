@@ -7,6 +7,7 @@ if (!defined('ABSPATH')) {
 }
 
 require_once __DIR__ . '/vendor/tfpdf.php';
+require_once __DIR__ . '/vendor/unifont/ttfonts.php';
 require_once __DIR__ . '/class-font-loader.php';
 
 class Simple_Pdf {
