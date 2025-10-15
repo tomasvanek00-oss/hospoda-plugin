@@ -8,7 +8,7 @@ class Week_Pdf_Exporter {
      *
      * @param array{monday:string,labels:array<int,string>,dates:array<int,string>,days:array<int,array>,sides_map:array<int,string>} $week
      */
-    public function build(array $week): string {
+    public function build(array $week, array $branding = []): string {
         $pdf = new Simple_Pdf();
         $startTs = strtotime($week['monday']);
         $endDate = end($week['dates']);
@@ -17,11 +17,25 @@ class Week_Pdf_Exporter {
 
         $pdf->set_title('Týdenní menu ' . $rangeLabel);
 
-        $pdf->add_text('HOSPODA POD KOSTELEM', ['font' => 'F2', 'size' => 26.0, 'align' => 'C', 'spacing_after' => 0.0]);
-        $pdf->add_text('Jarošov nad Nežárkou', ['size' => 13.0, 'align' => 'C', 'spacing_after' => 12.0]);
-        $pdf->add_text('Denní nabídka', ['font' => 'F2', 'size' => 18.0, 'align' => 'C', 'spacing_after' => 4.0]);
-        $pdf->add_text('K hlavnímu jídlu polévka za 20 Kč · Kola 0,3 l k menu za 15 Kč', ['size' => 11.0, 'align' => 'C', 'spacing_after' => 10.0]);
-        $pdf->add_text('Vaříme PO–PÁ od 10:30 do 14:00. Objednávky přijímáme den předem do 16:00 na telefonu hospody nebo osobně u obsluhy.', ['size' => 11.0, 'align' => 'C', 'spacing_after' => 14.0]);
+        $logoPath = is_string($branding['logo_path'] ?? '') ? trim($branding['logo_path']) : '';
+        $topCustom = !empty($branding['_top_custom']);
+        $bottomCustom = !empty($branding['_bottom_custom']);
+        if ($logoPath !== '') {
+            $pdf->add_image($logoPath, ['width' => 200.0, 'align' => 'center', 'spacing_after' => 12.0]);
+        }
+
+        $topLines = $this->extractLines($branding['top_text'] ?? '');
+        $topStyles = $this->getTopLineStyles();
+        foreach ($topLines as $index => $line) {
+            $style = $this->resolveStyle($topStyles, $index);
+            $pdf->add_text($line, $style);
+        }
+        if (empty($topLines) && !$topCustom) {
+            $fallback = $this->getTopLineFallback();
+            foreach ($fallback as $style) {
+                $pdf->add_text($style['text'], $style['options']);
+            }
+        }
 
         foreach ($week['dates'] as $index => $date) {
             $label = $week['labels'][$index] ?? '';
@@ -45,8 +59,19 @@ class Week_Pdf_Exporter {
             $pdf->add_spacer(10.0);
         }
 
-        $pdf->add_text('Seznam alergenů je k nahlédnutí u obsluhy. Pro více informací se ptejte personálu.', ['size' => 10.0, 'spacing_after' => 4.0]);
-        $pdf->add_text('V nabídce mohou nastat drobné změny podle dostupnosti surovin. Děkujeme za pochopení.', ['size' => 10.0, 'spacing_after' => 6.0]);
+        $bottomLines = $this->extractLines($branding['bottom_text'] ?? '');
+        $bottomStyles = $this->getBottomLineStyles();
+        if (!empty($bottomLines)) {
+            foreach ($bottomLines as $index => $line) {
+                $style = $this->resolveStyle($bottomStyles, $index);
+                $pdf->add_text($line, $style);
+            }
+        } elseif (!$bottomCustom) {
+            $fallback = $this->getBottomLineFallback();
+            foreach ($fallback as $style) {
+                $pdf->add_text($style['text'], $style['options']);
+            }
+        }
 
         $generated = 'Vygenerováno: ' . $this->formatDate(date('Y-m-d'));
         $pdf->add_text($generated, ['size' => 10.0, 'spacing_after' => 0.0]);
@@ -132,5 +157,79 @@ class Week_Pdf_Exporter {
             return $date;
         }
         return $this->formatTimestamp($ts);
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function extractLines($value): array {
+        if (!is_string($value)) {
+            return [];
+        }
+        $value = str_replace(["\r\n", "\r"], "\n", $value);
+        $lines = array_map('trim', explode("\n", $value));
+        $lines = array_values(array_filter($lines, static function ($line) {
+            return $line !== '';
+        }));
+        return $lines;
+    }
+
+    /**
+     * @return array<int|string,array<string,mixed>>
+     */
+    private function getTopLineStyles(): array {
+        return [
+            0 => ['font' => 'F2', 'size' => 26.0, 'align' => 'C', 'spacing_after' => 0.0],
+            1 => ['size' => 13.0, 'align' => 'C', 'spacing_after' => 12.0],
+            2 => ['font' => 'F2', 'size' => 18.0, 'align' => 'C', 'spacing_after' => 4.0],
+            3 => ['size' => 11.0, 'align' => 'C', 'spacing_after' => 10.0],
+            4 => ['size' => 11.0, 'align' => 'C', 'spacing_after' => 14.0],
+            'default' => ['size' => 12.0, 'align' => 'C', 'spacing_after' => 8.0],
+        ];
+    }
+
+    /**
+     * @return array<int|string,array<string,mixed>>
+     */
+    private function getBottomLineStyles(): array {
+        return [
+            0 => ['size' => 10.0, 'spacing_after' => 4.0],
+            1 => ['size' => 10.0, 'spacing_after' => 6.0],
+            'default' => ['size' => 10.0, 'spacing_after' => 4.0],
+        ];
+    }
+
+    /**
+     * @param array<int|string,array<string,mixed>> $styles
+     * @return array<string,mixed>
+     */
+    private function resolveStyle(array $styles, int $index): array {
+        if (isset($styles[$index])) {
+            return $styles[$index];
+        }
+        return $styles['default'];
+    }
+
+    /**
+     * @return array<int,array{text:string,options:array<string,mixed>}> 
+     */
+    private function getTopLineFallback(): array {
+        return [
+            ['text' => 'HOSPODA POD KOSTELEM', 'options' => ['font' => 'F2', 'size' => 26.0, 'align' => 'C', 'spacing_after' => 0.0]],
+            ['text' => 'Jarošov nad Nežárkou', 'options' => ['size' => 13.0, 'align' => 'C', 'spacing_after' => 12.0]],
+            ['text' => 'Denní nabídka', 'options' => ['font' => 'F2', 'size' => 18.0, 'align' => 'C', 'spacing_after' => 4.0]],
+            ['text' => 'K hlavnímu jídlu polévka za 20 Kč · Kola 0,3 l k menu za 15 Kč', 'options' => ['size' => 11.0, 'align' => 'C', 'spacing_after' => 10.0]],
+            ['text' => 'Vaříme PO–PÁ od 10:30 do 14:00. Objednávky přijímáme den předem do 16:00 na telefonu hospody nebo osobně u obsluhy.', 'options' => ['size' => 11.0, 'align' => 'C', 'spacing_after' => 14.0]],
+        ];
+    }
+
+    /**
+     * @return array<int,array{text:string,options:array<string,mixed>}> 
+     */
+    private function getBottomLineFallback(): array {
+        return [
+            ['text' => 'Seznam alergenů je k nahlédnutí u obsluhy. Pro více informací se ptejte personálu.', 'options' => ['size' => 10.0, 'spacing_after' => 4.0]],
+            ['text' => 'V nabídce mohou nastat drobné změny podle dostupnosti surovin. Děkujeme za pochopení.', 'options' => ['size' => 10.0, 'spacing_after' => 6.0]],
+        ];
     }
 }

@@ -75,6 +75,7 @@ class Hospoda_Plugin {
         add_action('wp_ajax_hospoda_meal_search', [$this,'ajax_meal_search']);
         add_action('admin_post_hospoda_save_day', [$this,'handle_save_day']);
         add_action('admin_post_hospoda_save_week', [$this,'handle_save_week']);
+        add_action('admin_post_hospoda_save_branding', [$this,'handle_save_branding']);
         add_action('admin_post_hospoda_export_week_pdf', [$this,'handle_export_week_pdf']);
         add_shortcode('poledni_menu', [$this,'shortcode_menu']);
         add_action('add_meta_boxes', [$this,'add_day_metabox']);
@@ -199,6 +200,9 @@ class Hospoda_Plugin {
         wp_add_inline_style('hospoda-admin',$css);
         $css2 = '.ui-autocomplete{z-index:100000 !important; background:#fff; border:1px solid #ccd0d4; box-shadow:0 2px 6px rgba(0,0,0,.1)} .ui-autocomplete .ui-menu-item-wrapper{padding:6px 10px} .ui-state-active{background:#f0f6ff}';
         wp_add_inline_style('hospoda-admin',$css2);
+        $css3 = '.hs-branding{margin:20px 0;padding:20px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;max-width:960px}.hs-branding h2{margin-top:0}.hs-branding__logo{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.hs-branding__preview{width:160px;min-height:120px;border:1px dashed #ccd0d4;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden}.hs-branding__preview img{max-width:100%;height:auto;display:block}.hs-branding__preview span{color:#777;font-style:italic}.hs-branding__buttons{display:flex;gap:8px;flex-wrap:wrap}.hs-branding textarea{max-width:100%}.hs-branding .description{margin-top:4px;color:#555}';
+        wp_add_inline_style('hospoda-admin',$css3);
+        wp_enqueue_media();
         wp_enqueue_script('jquery-ui-autocomplete');
         $js = <<<'JS'
         (function($){
@@ -297,6 +301,109 @@ class Hospoda_Plugin {
 JS;
         wp_localize_script('jquery-ui-autocomplete','HOSPOS',['nonce'=>wp_create_nonce('hospoda_meal_search')]);
         wp_add_inline_script('jquery-ui-autocomplete',$js);
+        wp_register_script('hospoda-admin-branding', false, ['jquery'], VERSION, true);
+        wp_enqueue_script('hospoda-admin-branding');
+        $branding_js = <<<'JS'
+        jQuery(function($){
+          var frame;
+          var $field = $('#hs-branding-logo-id');
+          var $preview = $('#hs-branding-logo-preview');
+          var $remove = $('.hs-branding-remove');
+
+          function render(url){
+            if (url) {
+              $preview.html('<img src="' + url.replace(/"/g, '&quot;') + '" alt="">');
+              $remove.prop('disabled', false);
+            } else {
+              $preview.html('<span>Žádné logo</span>');
+              $remove.prop('disabled', true);
+            }
+          }
+
+          $('.hs-branding-select').on('click', function(e){
+            e.preventDefault();
+            if (frame) {
+              frame.open();
+              return;
+            }
+            frame = wp.media({
+              title: 'Vyberte logo',
+              button: { text: 'Použít logo' },
+              library: { type: 'image' }
+            });
+            frame.on('select', function(){
+              var attachment = frame.state().get('selection').first().toJSON();
+              $field.val(attachment.id);
+              render(attachment.url || '');
+            });
+            frame.open();
+          });
+
+          $remove.on('click', function(e){
+            e.preventDefault();
+            $field.val('');
+            render('');
+          });
+
+          if (!$field.val()) {
+            render('');
+          }
+        });
+JS;
+        wp_add_inline_script('hospoda-admin-branding', $branding_js);
+    }
+
+    private function get_pdf_branding_defaults(): array {
+        return [
+            'logo_id'     => 0,
+            'top_text'    => "HOSPODA POD KOSTELEM\nJarošov nad Nežárkou\nDenní nabídka\nK hlavnímu jídlu polévka za 20 Kč · Kola 0,3 l k menu za 15 Kč\nVaříme PO–PÁ od 10:30 do 14:00. Objednávky přijímáme den předem do 16:00 na telefonu hospody nebo osobně u obsluhy.",
+            'bottom_text' => "Seznam alergenů je k nahlédnutí u obsluhy. Pro více informací se ptejte personálu.\nV nabídce mohou nastat drobné změny podle dostupnosti surovin. Děkujeme za pochopení.",
+        ];
+    }
+
+    public function get_pdf_branding_settings(): array {
+        $stored = get_option('hsp_pdf_branding', []);
+        if (!is_array($stored)) {
+            $stored = [];
+        }
+
+        $defaults = $this->get_pdf_branding_defaults();
+        $output = $defaults;
+
+        $output['_top_custom'] = array_key_exists('top_text', $stored);
+        $output['_bottom_custom'] = array_key_exists('bottom_text', $stored);
+
+        if (isset($stored['logo_id'])) {
+            $output['logo_id'] = (int)$stored['logo_id'];
+        }
+        if ($output['_top_custom']) {
+            $output['top_text'] = $this->sanitize_multiline_text((string)$stored['top_text']);
+        }
+        if ($output['_bottom_custom']) {
+            $output['bottom_text'] = $this->sanitize_multiline_text((string)$stored['bottom_text']);
+        }
+
+        return $output;
+    }
+
+    private function sanitize_multiline_text(string $value): string {
+        $value = str_replace(["\r\n", "\r"], "\n", $value);
+        $lines = array_map('trim', explode("\n", $value));
+        $lines = array_filter($lines, static function ($line) {
+            return $line !== '';
+        });
+        return implode("\n", $lines);
+    }
+
+    private function resolve_branding_logo_path(int $attachment_id): string {
+        if ($attachment_id <= 0) {
+            return '';
+        }
+        $path = get_attached_file($attachment_id);
+        if (!$path || !is_string($path)) {
+            return '';
+        }
+        return file_exists($path) ? $path : '';
     }
 
     private function ensure_meal_exists($title){
@@ -658,9 +765,53 @@ JS;
         $sides = $week['sides_terms'];
         $monday = $week['monday'];
         $day_count = count($dates);
+        $branding = $this->get_pdf_branding_settings();
+        $logo_id = (int)($branding['logo_id'] ?? 0);
+        $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : '';
         ?>
         <div class="wrap">
           <h1>Týdenní menu</h1>
+          <?php if (isset($_GET['saved'])) : ?>
+            <div class="notice notice-success is-dismissible"><p>Týdenní menu bylo uloženo.</p></div>
+          <?php endif; ?>
+          <?php if (isset($_GET['branding_saved'])) : ?>
+            <div class="notice notice-success is-dismissible"><p>Nastavení PDF exportu bylo uloženo.</p></div>
+          <?php endif; ?>
+          <form class="hs-branding" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+            <h2>Nastavení PDF exportu</h2>
+            <?php wp_nonce_field('hospoda_save_branding'); ?>
+            <input type="hidden" name="action" value="hospoda_save_branding">
+            <div class="hs-branding__logo">
+              <div id="hs-branding-logo-preview" class="hs-branding__preview">
+                <?php if ($logo_url) : ?>
+                  <img src="<?php echo esc_url($logo_url); ?>" alt="">
+                <?php else : ?>
+                  <span>Žádné logo</span>
+                <?php endif; ?>
+              </div>
+              <div>
+                <input type="hidden" id="hs-branding-logo-id" name="branding_logo_id" value="<?php echo esc_attr($logo_id); ?>">
+                <div class="hs-branding__buttons">
+                  <button type="button" class="button hs-branding-select">Vybrat logo</button>
+                  <button type="button" class="button hs-branding-remove"<?php if (!$logo_url) echo ' disabled'; ?>>Odebrat logo</button>
+                </div>
+                <p class="description">Doporučené logo ve formátu PNG s průhledným pozadím.</p>
+              </div>
+            </div>
+            <p>
+              <label for="hs-branding-top"><strong>Text v záhlaví</strong></label><br>
+              <textarea name="branding_top" id="hs-branding-top" rows="5" class="large-text code"><?php echo esc_textarea($branding['top_text']); ?></textarea>
+              <span class="description">Každý řádek se vykreslí jako samostatný řádek nad jídelníčkem.</span>
+            </p>
+            <p>
+              <label for="hs-branding-bottom"><strong>Text v patičce</strong></label><br>
+              <textarea name="branding_bottom" id="hs-branding-bottom" rows="4" class="large-text code"><?php echo esc_textarea($branding['bottom_text']); ?></textarea>
+              <span class="description">Řádky se zobrazí pod seznamem jídel před informací o datu vygenerování.</span>
+            </p>
+            <p>
+              <button type="submit" class="button button-secondary">Uložit nastavení PDF</button>
+            </p>
+          </form>
           <form class="hs-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <?php wp_nonce_field('hospoda_save_week'); ?>
             <input type="hidden" name="action" value="hospoda_save_week">
@@ -744,17 +895,41 @@ JS;
         exit;
     }
 
+    public function handle_save_branding() {
+        if (!current_user_can('edit_posts')) {
+            wp_die();
+        }
+        check_admin_referer('hospoda_save_branding');
+
+        $logo_id = isset($_POST['branding_logo_id']) ? intval($_POST['branding_logo_id']) : 0;
+        $top = isset($_POST['branding_top']) ? sanitize_textarea_field(wp_unslash($_POST['branding_top'])) : '';
+        $bottom = isset($_POST['branding_bottom']) ? sanitize_textarea_field(wp_unslash($_POST['branding_bottom'])) : '';
+
+        $data = [
+            'logo_id'     => max(0, $logo_id),
+            'top_text'    => $this->sanitize_multiline_text($top),
+            'bottom_text' => $this->sanitize_multiline_text($bottom),
+        ];
+
+        update_option('hsp_pdf_branding', $data, false);
+
+        wp_redirect(admin_url('admin.php?page=hospoda-week&branding_saved=1'));
+        exit;
+    }
+
     public function handle_export_week_pdf(){
         if(!current_user_can('edit_posts')) wp_die();
         check_admin_referer('hospoda_export_week_pdf','hospoda_export_week_pdf_nonce');
         $week_start = isset($_POST['week_start']) ? sanitize_text_field($_POST['week_start']) : date('Y-m-d');
         $week = $this->prepare_week_context($week_start);
+        $branding = $this->get_pdf_branding_settings();
+        $branding['logo_path'] = $this->resolve_branding_logo_path((int)($branding['logo_id'] ?? 0));
 
         require_once __DIR__ . '/includes/class-simple-pdf.php';
         require_once __DIR__ . '/includes/class-week-pdf-exporter.php';
 
         $exporter = new Week_Pdf_Exporter();
-        $pdf = $exporter->build($week);
+        $pdf = $exporter->build($week, $branding);
 
         $monday_ts = strtotime($week['monday']);
         if ($monday_ts === false) {
