@@ -75,6 +75,7 @@ class Hospoda_Plugin {
         add_action('wp_ajax_hospoda_meal_search', [$this,'ajax_meal_search']);
         add_action('admin_post_hospoda_save_day', [$this,'handle_save_day']);
         add_action('admin_post_hospoda_save_week', [$this,'handle_save_week']);
+        add_action('admin_post_hospoda_export_week_pdf', [$this,'handle_export_week_pdf']);
         add_shortcode('poledni_menu', [$this,'shortcode_menu']);
         add_action('add_meta_boxes', [$this,'add_day_metabox']);
         add_filter('manage_'.CPT_DAY.'_posts_columns', [$this,'day_columns']);
@@ -194,7 +195,7 @@ class Hospoda_Plugin {
         // Always load on admin for reliability; if needed, we can narrow later.
         // Previously guarded by $hook which may differ across setups.
         wp_enqueue_style('hospoda-admin', false, [], VERSION);
-        $css = '.hs-mains .row.main{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px}.hs-mains .row.main input.meal-autocomplete{min-width:260px}.hs-mains .row.main input.price{width:90px}.hs-mains .sides label{margin-right:10px;white-space:nowrap;display:inline-block}.hs-week-day{border:1px solid #ddd;padding:12px;margin-top:14px;background:#fff}.hs-week-day legend{font-weight:600}';
+        $css = '.hs-mains .row.main{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px}.hs-mains .row.main input.meal-autocomplete{min-width:260px}.hs-mains .row.main input.price{width:90px}.hs-mains .sides label{margin-right:10px;white-space:nowrap;display:inline-block}.hs-week-day{border:1px solid #ddd;padding:12px;margin-top:14px;background:#fff}.hs-week-day legend{font-weight:600}.hs-week-actions{display:flex;gap:10px;align-items:center;margin-top:18px}';
         wp_add_inline_style('hospoda-admin',$css);
         $css2 = '.ui-autocomplete{z-index:100000 !important; background:#fff; border:1px solid #ccd0d4; box-shadow:0 2px 6px rgba(0,0,0,.1)} .ui-autocomplete .ui-menu-item-wrapper{padding:6px 10px} .ui-state-active{background:#f0f6ff}';
         wp_add_inline_style('hospoda-admin',$css2);
@@ -593,19 +594,70 @@ JS;
         <?php
     }
 
-    public function render_week_admin_page() {
-        $week_start = isset($_GET['week'])?sanitize_text_field($_GET['week']):date('Y-m-d');
-        $ts=strtotime($week_start); $dow=(int)date('N',$ts); $monday=date('Y-m-d',strtotime('-'.($dow-1).' days',$ts));
+    private function prepare_week_context($week_start){
+        $week_start = $week_start ?: date('Y-m-d');
+        $timestamp = strtotime($week_start);
+        if ($timestamp === false) {
+            $timestamp = \current_time('timestamp');
+        }
+        $dow = (int)date('N', $timestamp);
+        $monday_ts = strtotime('-'.($dow-1).' days', $timestamp);
+        if ($monday_ts === false) {
+            $monday_ts = $timestamp;
+        }
+        $monday = date('Y-m-d', $monday_ts);
         $labels=['Pondělí','Úterý','Středa','Čtvrtek','Pátek'];
-        $dates=[]; for($i=0;$i<5;$i++){ $dates[$i]=date('Y-m-d',strtotime("+{$i} day",strtotime($monday))); }
-        $sides=get_terms(['taxonomy'=>TAX_SIDE,'hide_empty'=>false]);
+        $dates=[];
+        for($i=0;$i<5;$i++){
+            $day_ts = strtotime("+{$i} day", $monday_ts);
+            $dates[$i] = $day_ts ? date('Y-m-d', $day_ts) : date('Y-m-d', $monday_ts);
+        }
+        $sides_terms = get_terms(['taxonomy'=>TAX_SIDE,'hide_empty'=>false]);
+        if (\is_wp_error($sides_terms)) {
+            $sides_terms = [];
+        }
+        $sides_map = [];
+        foreach ($sides_terms as $side) {
+            $term_id = is_object($side) ? (int)$side->term_id : (int)($side['term_id'] ?? 0);
+            $term_name = is_object($side) ? $side->name : ($side['name'] ?? '');
+            if ($term_id) {
+                $sides_map[$term_id] = $term_name;
+            }
+        }
+
         $days_data=[];
         for($i=0;$i<5;$i++){
             $posts=get_posts(['post_type'=>CPT_DAY,'posts_per_page'=>1,'meta_key'=>'menu_date','meta_value'=>$dates[$i]]);
-            if($posts){ $id=$posts[0]->ID;
-                $days_data[$i]=['soup'=>get_post_meta($id,'soup',true),'mains'=>get_post_meta($id,'mains',true)];
-            } else $days_data[$i]=['soup'=>['id'=>'','title'=>'','price'=>''],'mains'=>[]];
+            if($posts){
+                $id=$posts[0]->ID;
+                $days_data[$i]=[
+                    'soup'=>get_post_meta($id,'soup',true),
+                    'mains'=>get_post_meta($id,'mains',true)
+                ];
+            } else {
+                $days_data[$i]=['soup'=>['id'=>'','title'=>'','price'=>''],'mains'=>[]];
+            }
         }
+
+        return [
+            'monday'      => $monday,
+            'labels'      => $labels,
+            'dates'       => $dates,
+            'days'        => $days_data,
+            'sides_terms' => $sides_terms,
+            'sides_map'   => $sides_map,
+        ];
+    }
+
+    public function render_week_admin_page() {
+        $week_start = isset($_GET['week'])?sanitize_text_field($_GET['week']):date('Y-m-d');
+        $week = $this->prepare_week_context($week_start);
+        $labels = $week['labels'];
+        $dates = $week['dates'];
+        $days_data = $week['days'];
+        $sides = $week['sides_terms'];
+        $monday = $week['monday'];
+        $day_count = count($dates);
         ?>
         <div class="wrap">
           <h1>Týdenní menu</h1>
@@ -615,8 +667,16 @@ JS;
             <label>Týden od (pondělí):</label>
             <input id="hs-week-start" type="date" name="week_start" value="<?php echo esc_attr($monday); ?>">
             <span class="description">Změnou data se načte zvolený týden (pondělí–pátek) bez uložení.</span>
-            <?php for($i=0;$i<5;$i++){ $this->render_week_day_block($i,$labels[$i],$dates[$i],$sides,$days_data[$i]); } ?>
-            <p><button class="button button-primary">Uložit celý týden</button></p>
+            <?php for($i=0;$i<$day_count;$i++){ $this->render_week_day_block($i,$labels[$i] ?? '',$dates[$i] ?? '',$sides,$days_data[$i] ?? []); } ?>
+            <div class="hs-week-actions">
+              <button class="button button-primary">Uložit celý týden</button>
+              <button type="submit" form="hs-week-export" class="button">Exportovat PDF</button>
+            </div>
+          </form>
+          <form id="hs-week-export" class="hs-export-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" target="_blank">
+            <?php wp_nonce_field('hospoda_export_week_pdf','hospoda_export_week_pdf_nonce'); ?>
+            <input type="hidden" name="action" value="hospoda_export_week_pdf">
+            <input type="hidden" name="week_start" value="<?php echo esc_attr($monday); ?>">
           </form>
         </div>
         <?php
@@ -681,6 +741,34 @@ JS;
         }
 
         wp_redirect(admin_url('admin.php?page=hospoda-week&saved=1'));
+        exit;
+    }
+
+    public function handle_export_week_pdf(){
+        if(!current_user_can('edit_posts')) wp_die();
+        check_admin_referer('hospoda_export_week_pdf','hospoda_export_week_pdf_nonce');
+        $week_start = isset($_POST['week_start']) ? sanitize_text_field($_POST['week_start']) : date('Y-m-d');
+        $week = $this->prepare_week_context($week_start);
+
+        require_once __DIR__ . '/includes/class-simple-pdf.php';
+        require_once __DIR__ . '/includes/class-week-pdf-exporter.php';
+
+        $exporter = new Week_Pdf_Exporter();
+        $pdf = $exporter->build($week);
+
+        $monday_ts = strtotime($week['monday']);
+        if ($monday_ts === false) {
+            $monday_ts = \current_time('timestamp');
+        }
+        $filename = 'tydenni-menu-' . date('Ymd', $monday_ts) . '.pdf';
+
+        if (!headers_sent()) {
+            \nocache_headers();
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Content-Length: ' . strlen($pdf));
+        }
+        echo $pdf;
         exit;
     }
 
