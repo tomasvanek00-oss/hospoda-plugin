@@ -203,14 +203,6 @@ class Hospoda_Plugin {
 
         add_submenu_page(
             'hospoda-week',
-            'Přidat nové jídlo',
-            'Přidat nové jídlo',
-            'edit_posts',
-            'post-new.php?post_type=' . CPT_MEAL
-        );
-
-        add_submenu_page(
-            'hospoda-week',
             'Přílohy',
             'Přílohy',
             'manage_categories',
@@ -252,8 +244,30 @@ class Hospoda_Plugin {
         wp_enqueue_style('hospoda-admin', false, [], VERSION);
 
         if ($is_week_page) {
-            $css = '.hs-mains .row.main{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px}.hs-mains .row.main input.meal-autocomplete{min-width:260px}.hs-mains .row.main input.price{width:90px}.hs-mains .sides label{margin-right:10px;white-space:nowrap;display:inline-block}.hs-week-day{border:1px solid #ddd;padding:12px;margin-top:14px;background:#fff}.hs-week-day legend{font-weight:600}.hs-week-actions{display:flex;gap:10px;align-items:center;margin-top:18px}';
-            wp_add_inline_style('hospoda-admin',$css);
+            $css = <<<'CSS'
+.hs-form.hs-week-form{max-width:1200px}
+.hs-week-header{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;margin:20px 0}
+.hs-week-header label{display:block;font-weight:600;margin-bottom:4px}
+.hs-week-header input[type=date]{min-width:200px}
+.hs-week-header .description{margin:0;color:#4b5563;max-width:480px}
+.hs-week-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;margin-top:10px}
+.hs-week-day{border:1px solid #d6d6d6;padding:20px;background:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(15,23,42,.04)}
+.hs-week-day legend{font-size:20px;margin:0 0 16px;display:flex;justify-content:space-between;align-items:baseline;font-weight:700;letter-spacing:.01em}
+.hs-week-day legend .hs-week-day__date{font-size:14px;font-weight:500;color:#5f6b7c}
+.hs-week-section{margin-bottom:20px}
+.hs-week-section:last-of-type{margin-bottom:0}
+.hs-week-section-title{margin:0 0 10px;font-size:14px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#6b7280}
+.hs-week-day .row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px}
+.hs-week-day .row:last-child{margin-bottom:0}
+.hs-week-day .row input.meal-autocomplete{flex:1 1 240px;min-width:220px}
+.hs-week-day .row input.price{width:110px}
+.hs-week-day .sides{display:flex;flex-wrap:wrap;gap:8px}
+.hs-week-day .sides label{margin:0;padding:4px 10px;border:1px solid #d5d7db;border-radius:4px;background:#f8fafc;font-size:13px}
+.hs-week-day .remove-row{margin-left:auto}
+.hs-week-add{margin:12px 0 0}
+.hs-week-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:28px}
+CSS;
+            wp_add_inline_style('hospoda-admin', $css);
             $css2 = '.ui-autocomplete{z-index:100000 !important; background:#fff; border:1px solid #ccd0d4; box-shadow:0 2px 6px rgba(0,0,0,.1)} .ui-autocomplete .ui-menu-item-wrapper{padding:6px 10px} .ui-state-active{background:#f0f6ff}';
             wp_add_inline_style('hospoda-admin',$css2);
             wp_enqueue_script('jquery-ui-autocomplete');
@@ -686,54 +700,61 @@ JS;
     private function render_week_day_block($index,$label,$date,$sides,$data){
         ?>
         <fieldset class="hs-week-day" data-week-index="<?php echo esc_attr($index); ?>">
-          <legend><?php echo esc_html($label); ?> <small>(<?php echo esc_html($date); ?>)</small></legend>
+          <legend>
+            <span class="hs-week-day__name"><?php echo esc_html($label); ?></span>
+            <span class="hs-week-day__date"><?php echo esc_html($this->format_admin_date($date)); ?></span>
+          </legend>
 
-          <!-- Polévka (vždy week[soup][index]) -->
-          <div class="row soup">
-            <input class="meal-autocomplete" name="week[soup][<?php echo esc_attr($index); ?>][title]" type="text" placeholder="Polévka – začněte psát…" value="<?php echo esc_attr($data['soup']['title'] ?? ''); ?>">
-            <input class="meal-id" type="hidden" name="week[soup][<?php echo esc_attr($index); ?>][id]" value="<?php echo esc_attr($data['soup']['id'] ?? ''); ?>">
-            <input class="price" type="text" name="week[soup][<?php echo esc_attr($index); ?>][price]" placeholder="Cena (Kč)" value="<?php echo esc_attr($data['soup']['price'] ?? ''); ?>">
+          <div class="hs-week-section hs-week-section--soup">
+            <h3 class="hs-week-section-title">Polévka</h3>
+            <div class="row soup">
+              <input class="meal-autocomplete" name="week[soup][<?php echo esc_attr($index); ?>][title]" type="text" placeholder="Polévka – začněte psát…" value="<?php echo esc_attr($data['soup']['title'] ?? ''); ?>">
+              <input class="meal-id" type="hidden" name="week[soup][<?php echo esc_attr($index); ?>][id]" value="<?php echo esc_attr($data['soup']['id'] ?? ''); ?>">
+              <input class="price" type="text" name="week[soup][<?php echo esc_attr($index); ?>][price]" placeholder="Cena (Kč)" value="<?php echo esc_attr($data['soup']['price'] ?? ''); ?>">
+            </div>
           </div>
 
-          <!-- Hlavní jídla (opakovatelný blok week[mains][index][i]) -->
-          <div id="mains-<?php echo esc_attr($index); ?>" class="hs-mains">
-            <?php
-            if (!empty($data['mains'])) {
-                foreach ($data['mains'] as $i=>$row) {
-                    $row_sides = $row['sides'] ?? [];
-                    ?>
-                    <div class="row main">
-                      <input class="meal-autocomplete" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][title]" type="text" placeholder="Název jídla…" value="<?php echo esc_attr($row['title'] ?? ''); ?>">
-                      <input class="meal-id" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][id]" value="<?php echo esc_attr($row['id'] ?? ''); ?>">
-                      <input class="price" type="text" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][price]" placeholder="Cena (Kč)" value="<?php echo esc_attr($row['price'] ?? ''); ?>">
-                      <div class="sides">
-                        <?php foreach ($sides as $side): $term_id = is_object($side)?$side->term_id:(isset($side['term_id'])?$side['term_id']:''); $term_name = is_object($side)?$side->name:(isset($side['name'])?$side['name']:''); ?>
-                          <label><input type="checkbox" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][sides][]" value="<?php echo esc_attr($term_id); ?>" <?php checked(in_array($term_id, $row_sides)); ?>> <?php echo esc_html($term_name); ?></label>
-                        <?php endforeach; ?>
+          <div class="hs-week-section hs-week-section--mains">
+            <h3 class="hs-week-section-title">Hlavní jídla</h3>
+            <div id="mains-<?php echo esc_attr($index); ?>" class="hs-mains">
+              <?php
+              if (!empty($data['mains'])) {
+                  foreach ($data['mains'] as $i=>$row) {
+                      $row_sides = $row['sides'] ?? [];
+                      ?>
+                      <div class="row main">
+                        <input class="meal-autocomplete" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][title]" type="text" placeholder="Název jídla…" value="<?php echo esc_attr($row['title'] ?? ''); ?>">
+                        <input class="meal-id" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][id]" value="<?php echo esc_attr($row['id'] ?? ''); ?>">
+                        <input class="price" type="text" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][price]" placeholder="Cena (Kč)" value="<?php echo esc_attr($row['price'] ?? ''); ?>">
+                        <div class="sides">
+                          <?php foreach ($sides as $side): $term_id = is_object($side)?$side->term_id:(isset($side['term_id'])?$side['term_id']:''); $term_name = is_object($side)?$side->name:(isset($side['name'])?$side['name']:''); ?>
+                            <label><input type="checkbox" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][sides][]" value="<?php echo esc_attr($term_id); ?>" <?php checked(in_array($term_id, $row_sides)); ?>> <?php echo esc_html($term_name); ?></label>
+                          <?php endforeach; ?>
+                        </div>
+                        <button type="button" class="button link-button remove-row" data-week-index="<?php echo esc_attr($index); ?>">Odstranit</button>
                       </div>
-                      <button type="button" class="button link-button remove-row" data-week-index="<?php echo esc_attr($index); ?>">Odstranit</button>
+                      <?php
+                  }
+              } else {
+                  // prázdná výchozí řádka s korektními názvy polí
+                  ?>
+                  <div class="row main">
+                    <input class="meal-autocomplete" name="week[mains][<?php echo esc_attr($index); ?>][0][title]" type="text" placeholder="Název jídla…" value="">
+                    <input class="meal-id" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][0][id]" value="">
+                    <input class="price" type="text" name="week[mains][<?php echo esc_attr($index); ?>][0][price]" placeholder="Cena (Kč)" value="">
+                    <div class="sides">
+                      <?php foreach ($sides as $side): $term_id = is_object($side)?$side->term_id:(isset($side['term_id'])?$side['term_id']:''); $term_name = is_object($side)?$side->name:(isset($side['name'])?$side['name']:''); ?>
+                        <label><input type="checkbox" name="week[mains][<?php echo esc_attr($index); ?>][0][sides][]" value="<?php echo esc_attr($term_id); ?>"> <?php echo esc_html($term_name); ?></label>
+                      <?php endforeach; ?>
                     </div>
-                    <?php
-                }
-            } else {
-                // prázdná výchozí řádka s korektními názvy polí
-                ?>
-                <div class="row main">
-                  <input class="meal-autocomplete" name="week[mains][<?php echo esc_attr($index); ?>][0][title]" type="text" placeholder="Název jídla…" value="">
-                  <input class="meal-id" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][0][id]" value="">
-                  <input class="price" type="text" name="week[mains][<?php echo esc_attr($index); ?>][0][price]" placeholder="Cena (Kč)" value="">
-                  <div class="sides">
-                    <?php foreach ($sides as $side): $term_id = is_object($side)?$side->term_id:(isset($side['term_id'])?$side['term_id']:''); $term_name = is_object($side)?$side->name:(isset($side['name'])?$side['name']:''); ?>
-                      <label><input type="checkbox" name="week[mains][<?php echo esc_attr($index); ?>][0][sides][]" value="<?php echo esc_attr($term_id); ?>"> <?php echo esc_html($term_name); ?></label>
-                    <?php endforeach; ?>
+                    <button type="button" class="button link-button remove-row" data-week-index="<?php echo esc_attr($index); ?>">Odstranit</button>
                   </div>
-                  <button type="button" class="button link-button remove-row" data-week-index="<?php echo esc_attr($index); ?>">Odstranit</button>
-                </div>
-                <?php
-            }
-            ?>
+                  <?php
+              }
+              ?>
+            </div>
+            <p class="hs-week-add"><button type="button" class="button add-row-week" data-week-index="<?php echo esc_attr($index); ?>">Přidat jídlo</button></p>
           </div>
-          <p><button type="button" class="button add-row-week" data-week-index="<?php echo esc_attr($index); ?>">Přidat jídlo</button></p>
         </fieldset>
         <?php
     }
@@ -793,6 +814,17 @@ JS;
         ];
     }
 
+    private function format_admin_date($date) {
+        if (empty($date)) {
+            return '';
+        }
+        $ts = strtotime($date);
+        if ($ts === false) {
+            return $date;
+        }
+        return date_i18n('j. n. Y', $ts);
+    }
+
     public function render_week_admin_page() {
         $week_start = isset($_GET['week'])?sanitize_text_field($_GET['week']):date('Y-m-d');
         $week = $this->prepare_week_context($week_start);
@@ -811,13 +843,19 @@ JS;
           <p>
             <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=hospoda-week-branding')); ?>">Nastavení PDF exportu</a>
           </p>
-          <form class="hs-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+          <form class="hs-form hs-week-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <?php wp_nonce_field('hospoda_save_week'); ?>
             <input type="hidden" name="action" value="hospoda_save_week">
-            <label>Týden od (pondělí):</label>
-            <input id="hs-week-start" type="date" name="week_start" value="<?php echo esc_attr($monday); ?>">
-            <span class="description">Změnou data se načte zvolený týden (pondělí–pátek) bez uložení.</span>
-            <?php for($i=0;$i<$day_count;$i++){ $this->render_week_day_block($i,$labels[$i] ?? '',$dates[$i] ?? '',$sides,$days_data[$i] ?? []); } ?>
+            <div class="hs-week-header">
+              <div>
+                <label for="hs-week-start">Týden od (pondělí):</label>
+                <input id="hs-week-start" type="date" name="week_start" value="<?php echo esc_attr($monday); ?>">
+              </div>
+              <p class="description">Změnou data se načte zvolený týden (pondělí–pátek) bez uložení.</p>
+            </div>
+            <div class="hs-week-grid">
+              <?php for($i=0;$i<$day_count;$i++){ $this->render_week_day_block($i,$labels[$i] ?? '',$dates[$i] ?? '',$sides,$days_data[$i] ?? []); } ?>
+            </div>
             <div class="hs-week-actions">
               <button class="button button-primary">Uložit celý týden</button>
               <button type="submit" form="hs-week-export" class="button">Exportovat PDF</button>
