@@ -23,13 +23,13 @@ class Week_Pdf_Exporter {
         $bottomCustom = !empty($branding['_bottom_custom']);
         if ($logoPath !== '') {
             $pdf->add_image_with_side_text($rangeHuman, $logoPath, [
-                'image_width' => 200.0,
-                'spacing_after' => 12.0,
-                'gap' => 24.0,
-                'text' => ['font' => 'F2', 'size' => 16.0],
+                'image_width' => 120.0,
+                'spacing_after' => 9.0,
+                'gap' => 16.0,
+                'text' => ['font' => 'F2', 'size' => 14.0, 'align' => 'L', 'spacing_after' => 0.0],
             ]);
         } else {
-            $pdf->add_text($rangeHuman, ['font' => 'F2', 'size' => 16.0, 'align' => 'C', 'spacing_after' => 12.0]);
+            $pdf->add_text($rangeHuman, ['font' => 'F2', 'size' => 14.0, 'align' => 'C', 'spacing_after' => 10.0]);
         }
 
         $topLines = $this->extractLines($branding['top_text'] ?? '');
@@ -48,23 +48,23 @@ class Week_Pdf_Exporter {
         foreach ($week['dates'] as $index => $date) {
             $label = $week['labels'][$index] ?? '';
             $heading = trim($label . ' ' . $this->formatDate($date));
-            $pdf->add_text($heading, ['font' => 'F2', 'size' => 15.0, 'spacing_after' => 3.0]);
+            $pdf->add_text($heading, ['font' => 'F2', 'size' => 13.0, 'spacing_after' => 2.0]);
 
             $dayData = $week['days'][$index] ?? ['soup' => [], 'mains' => []];
             $soupLine = $this->formatSoupLine($dayData['soup'] ?? []);
-            $pdf->add_text($soupLine, ['indent' => 14.0, 'size' => 12.0, 'spacing_after' => 4.0]);
+            $pdf->add_text($soupLine, ['indent' => 14.0, 'size' => 11.0, 'spacing_after' => 3.0]);
 
             $mains = $dayData['mains'] ?? [];
             if (!empty($mains)) {
                 foreach ($mains as $position => $row) {
                     $line = $this->formatMainLine($position + 1, $row, $week['sides_map']);
-                    $pdf->add_text($line, ['indent' => 20.0, 'size' => 12.0, 'spacing_after' => 3.0]);
+                    $pdf->add_text($line, ['indent' => 20.0, 'size' => 11.0, 'spacing_after' => 2.0]);
                 }
             } else {
-                $pdf->add_text('Žádná hlavní jídla nejsou nastavena.', ['indent' => 20.0, 'size' => 12.0, 'spacing_after' => 3.0]);
+                $pdf->add_text('Žádná hlavní jídla nejsou nastavena.', ['indent' => 20.0, 'size' => 11.0, 'spacing_after' => 2.0]);
             }
 
-            $pdf->add_spacer(10.0);
+            $pdf->add_spacer(6.0);
         }
 
         $bottomLines = $this->extractLines($branding['bottom_text'] ?? '');
@@ -223,12 +223,12 @@ class Week_Pdf_Exporter {
      */
     private function getTopLineStyles(): array {
         return [
-            0 => ['font' => 'F2', 'size' => 26.0, 'align' => 'C', 'spacing_after' => 0.0],
-            1 => ['size' => 13.0, 'align' => 'C', 'spacing_after' => 12.0],
-            2 => ['font' => 'F2', 'size' => 18.0, 'align' => 'C', 'spacing_after' => 4.0],
-            3 => ['size' => 11.0, 'align' => 'C', 'spacing_after' => 10.0],
-            4 => ['size' => 11.0, 'align' => 'C', 'spacing_after' => 14.0],
-            'default' => ['size' => 12.0, 'align' => 'C', 'spacing_after' => 8.0],
+            0 => ['font' => 'F2', 'size' => 22.0, 'align' => 'C', 'spacing_after' => 0.0],
+            1 => ['size' => 12.0, 'align' => 'C', 'spacing_after' => 8.0],
+            2 => ['font' => 'F2', 'size' => 16.0, 'align' => 'C', 'spacing_after' => 3.0],
+            3 => ['size' => 10.0, 'align' => 'C', 'spacing_after' => 8.0],
+            4 => ['size' => 10.0, 'align' => 'C', 'spacing_after' => 10.0],
+            'default' => ['size' => 11.0, 'align' => 'C', 'spacing_after' => 6.0],
         ];
     }
 
@@ -237,9 +237,9 @@ class Week_Pdf_Exporter {
      */
     private function getBottomLineStyles(): array {
         return [
-            0 => ['size' => 10.0, 'spacing_after' => 4.0],
-            1 => ['size' => 10.0, 'spacing_after' => 6.0],
-            'default' => ['size' => 10.0, 'spacing_after' => 4.0],
+            0 => ['size' => 9.0, 'spacing_after' => 3.0],
+            1 => ['size' => 9.0, 'spacing_after' => 4.0],
+            'default' => ['size' => 9.0, 'spacing_after' => 3.0],
         ];
     }
 
@@ -259,11 +259,11 @@ class Week_Pdf_Exporter {
      */
     private function getTopLineFallback(): array {
         return [
-            ['text' => 'HOSPODA POD KOSTELEM', 'options' => ['font' => 'F2', 'size' => 26.0, 'align' => 'C', 'spacing_after' => 0.0]],
-            ['text' => 'Jarošov nad Nežárkou', 'options' => ['size' => 13.0, 'align' => 'C', 'spacing_after' => 12.0]],
-            ['text' => 'Denní nabídka', 'options' => ['font' => 'F2', 'size' => 18.0, 'align' => 'C', 'spacing_after' => 4.0]],
-            ['text' => 'K hlavnímu jídlu polévka za 20 Kč · Kola 0,3 l k menu za 15 Kč', 'options' => ['size' => 11.0, 'align' => 'C', 'spacing_after' => 10.0]],
-            ['text' => 'Vaříme PO–PÁ od 10:30 do 14:00. Objednávky přijímáme den předem do 16:00 na telefonu hospody nebo osobně u obsluhy.', 'options' => ['size' => 11.0, 'align' => 'C', 'spacing_after' => 14.0]],
+            ['text' => 'HOSPODA POD KOSTELEM', 'options' => ['font' => 'F2', 'size' => 22.0, 'align' => 'C', 'spacing_after' => 0.0]],
+            ['text' => 'Jarošov nad Nežárkou', 'options' => ['size' => 12.0, 'align' => 'C', 'spacing_after' => 8.0]],
+            ['text' => 'Denní nabídka', 'options' => ['font' => 'F2', 'size' => 16.0, 'align' => 'C', 'spacing_after' => 3.0]],
+            ['text' => 'K hlavnímu jídlu polévka za 20 Kč · Kola 0,3 l k menu za 15 Kč', 'options' => ['size' => 10.0, 'align' => 'C', 'spacing_after' => 8.0]],
+            ['text' => 'Vaříme PO–PÁ od 10:30 do 14:00. Objednávky přijímáme den předem do 16:00 na telefonu hospody nebo osobně u obsluhy.', 'options' => ['size' => 10.0, 'align' => 'C', 'spacing_after' => 10.0]],
         ];
     }
 
@@ -272,8 +272,8 @@ class Week_Pdf_Exporter {
      */
     private function getBottomLineFallback(): array {
         return [
-            ['text' => 'Seznam alergenů je k nahlédnutí u obsluhy. Pro více informací se ptejte personálu.', 'options' => ['size' => 10.0, 'spacing_after' => 4.0]],
-            ['text' => 'V nabídce mohou nastat drobné změny podle dostupnosti surovin. Děkujeme za pochopení.', 'options' => ['size' => 10.0, 'spacing_after' => 6.0]],
+            ['text' => 'Seznam alergenů je k nahlédnutí u obsluhy. Pro více informací se ptejte personálu.', 'options' => ['size' => 9.0, 'spacing_after' => 3.0]],
+            ['text' => 'V nabídce mohou nastat drobné změny podle dostupnosti surovin. Děkujeme za pochopení.', 'options' => ['size' => 9.0, 'spacing_after' => 4.0]],
         ];
     }
 }
