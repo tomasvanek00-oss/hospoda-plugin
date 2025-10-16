@@ -14,6 +14,7 @@ class Week_Pdf_Exporter {
         $endDate = end($week['dates']);
         $endTs = $endDate ? strtotime($endDate) : false;
         $rangeLabel = $this->formatRange($startTs ?: time(), $endTs ?: $startTs ?: time());
+        $rangeHuman = $this->formatHumanRange($startTs ?: time(), $endTs ?: $startTs ?: time());
 
         $pdf->set_title('Týdenní menu ' . $rangeLabel);
 
@@ -21,7 +22,14 @@ class Week_Pdf_Exporter {
         $topCustom = !empty($branding['_top_custom']);
         $bottomCustom = !empty($branding['_bottom_custom']);
         if ($logoPath !== '') {
-            $pdf->add_image($logoPath, ['width' => 200.0, 'align' => 'center', 'spacing_after' => 12.0]);
+            $pdf->add_image_with_side_text($rangeHuman, $logoPath, [
+                'image_width' => 200.0,
+                'spacing_after' => 12.0,
+                'gap' => 24.0,
+                'text' => ['font' => 'F2', 'size' => 16.0],
+            ]);
+        } else {
+            $pdf->add_text($rangeHuman, ['font' => 'F2', 'size' => 16.0, 'align' => 'C', 'spacing_after' => 12.0]);
         }
 
         $topLines = $this->extractLines($branding['top_text'] ?? '');
@@ -144,6 +152,21 @@ class Week_Pdf_Exporter {
         return $this->formatTimestamp($startTs) . ' – ' . $this->formatTimestamp($endTs);
     }
 
+    private function formatHumanRange(int $startTs, int $endTs): string {
+        $startLabel = $this->formatHumanDate($startTs);
+        $endLabel = $this->formatHumanDate($endTs);
+
+        $startYear = (int)date('Y', $startTs);
+        $endYear = (int)date('Y', $endTs);
+
+        if ($startYear !== $endYear) {
+            $startLabel .= ' ' . $startYear;
+            $endLabel .= ' ' . $endYear;
+        }
+
+        return $startLabel . ' – ' . $endLabel;
+    }
+
     private function formatTimestamp(int $ts): string {
         return date('d.m.Y', $ts);
     }
@@ -154,6 +177,30 @@ class Week_Pdf_Exporter {
             return $date;
         }
         return $this->formatTimestamp($ts);
+    }
+
+    private function formatHumanDate(int $ts): string {
+        $day = (int)date('j', $ts);
+        $month = (int)date('n', $ts);
+
+        $months = [
+            1 => 'ledna',
+            2 => 'února',
+            3 => 'března',
+            4 => 'dubna',
+            5 => 'května',
+            6 => 'června',
+            7 => 'července',
+            8 => 'srpna',
+            9 => 'září',
+            10 => 'října',
+            11 => 'listopadu',
+            12 => 'prosince',
+        ];
+
+        $monthName = $months[$month] ?? date('n', $ts);
+
+        return $day . '. ' . $monthName;
     }
 
     /**

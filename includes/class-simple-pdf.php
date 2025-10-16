@@ -147,6 +147,95 @@ class Simple_Pdf {
         $this->pdf->Ln($targetHeightMm + $spacingAfterMm);
     }
 
+    /**
+     * Render a left-aligned text block with an image floated to the right on the same row.
+     *
+     * @param array{text?:array<string,mixed>,image_width?:float,gap?:float,spacing_after?:float} $options
+     */
+    public function add_image_with_side_text(string $text, string $path, array $options = []): void {
+        $text = $this->normalizeText($text);
+        $hasImage = is_file($path);
+
+        if ($text === '' && !$hasImage) {
+            return;
+        }
+
+        if (!$hasImage) {
+            $textOptions = is_array($options['text'] ?? null) ? $options['text'] : [];
+            $this->add_text($text, $textOptions);
+            return;
+        }
+
+        $imageSize = @getimagesize($path);
+        if (!$imageSize || empty($imageSize[0]) || empty($imageSize[1])) {
+            $textOptions = is_array($options['text'] ?? null) ? $options['text'] : [];
+            $this->add_text($text, $textOptions);
+            return;
+        }
+
+        $textOptions = is_array($options['text'] ?? null) ? $options['text'] : [];
+
+        $targetWidthPt = isset($options['image_width']) ? (float)$options['image_width'] : 200.0;
+        $gapPt = isset($options['gap']) ? (float)$options['gap'] : 18.0;
+        $spacingAfterPt = isset($options['spacing_after']) ? (float)$options['spacing_after'] : 12.0;
+
+        $targetWidthMm = $this->ptToMm($targetWidthPt);
+        if ($targetWidthMm <= 0) {
+            $targetWidthMm = 60.0;
+        }
+
+        $targetHeightMm = $targetWidthMm * ($imageSize[1] / $imageSize[0]);
+        $gapMm = $this->ptToMm($gapPt);
+        $spacingAfterMm = $this->ptToMm($spacingAfterPt);
+
+        $availableWidthMm = self::PAGE_WIDTH_MM - $this->marginLeftMm - $this->marginRightMm;
+        $textWidthMm = $availableWidthMm - $targetWidthMm - $gapMm;
+
+        if ($text === '' || $textWidthMm < 30.0) {
+            if ($text !== '') {
+                $this->add_text($text, $textOptions);
+            }
+            $this->add_image($path, ['width' => $targetWidthPt, 'spacing_after' => $spacingAfterPt, 'align' => 'center']);
+            return;
+        }
+
+        $fontKey = $textOptions['font'] ?? 'F1';
+        $fontSize = isset($textOptions['size']) ? (float)$textOptions['size'] : 12.0;
+        $align = strtoupper($textOptions['align'] ?? 'L');
+        if (!in_array($align, ['L', 'C', 'R', 'J'], true)) {
+            $align = 'L';
+        }
+
+        $style = $fontKey === 'F2' ? 'B' : '';
+        $this->pdf->SetFont($this->fontFamilyForKey($fontKey), $style, $fontSize);
+
+        $lineHeightMm = $this->ptToMm($fontSize * 1.35);
+
+        $startX = $this->marginLeftMm;
+        $startY = $this->pdf->GetY();
+
+        $this->pdf->SetLeftMargin($startX);
+        $this->pdf->SetRightMargin($this->marginRightMm + $targetWidthMm + $gapMm);
+        $this->pdf->SetXY($startX, $startY);
+        $this->pdf->MultiCell($textWidthMm, $lineHeightMm, $text, 0, $align);
+        $textBottomY = $this->pdf->GetY();
+
+        $imageX = $this->marginLeftMm + $textWidthMm + $gapMm;
+        $imageY = $startY;
+        $this->pdf->Image($path, $imageX, $imageY, $targetWidthMm);
+        $imageBottomY = $imageY + $targetHeightMm;
+
+        $this->pdf->SetLeftMargin($this->marginLeftMm);
+        $this->pdf->SetRightMargin($this->marginRightMm);
+        $this->pdf->SetX($this->marginLeftMm);
+
+        $bottomY = max($textBottomY, $imageBottomY);
+        $this->pdf->SetY($bottomY);
+        if ($spacingAfterMm > 0) {
+            $this->pdf->Ln($spacingAfterMm);
+        }
+    }
+
     public function output(): string {
         return $this->pdf->Output('S');
     }
