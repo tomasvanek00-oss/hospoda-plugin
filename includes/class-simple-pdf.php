@@ -13,10 +13,10 @@ require_once __DIR__ . '/class-font-loader.php';
 class Simple_Pdf {
     private const PAGE_WIDTH_MM = 210.0; // A4
     private const PAGE_HEIGHT_MM = 297.0;
-    private const MARGIN_LEFT_PT = 44.0;
-    private const MARGIN_RIGHT_PT = 44.0;
-    private const MARGIN_TOP_PT = 48.0;
-    private const MARGIN_BOTTOM_PT = 48.0;
+    private const MARGIN_LEFT_PT = 40.0;
+    private const MARGIN_RIGHT_PT = 40.0;
+    private const MARGIN_TOP_PT = 42.0;
+    private const MARGIN_BOTTOM_PT = 42.0;
 
     /** @var \tFPDF */
     private $pdf;
@@ -72,7 +72,7 @@ class Simple_Pdf {
 
         $indentMm = $this->ptToMm($indentPt);
         $spacingAfterMm = $this->ptToMm($spacingAfterPt);
-        $lineHeightMm = $this->ptToMm($fontSize * 1.28);
+        $lineHeightMm = $this->ptToMm($fontSize * 1.24);
 
         $availableWidthMm = self::PAGE_WIDTH_MM - $this->marginLeftMm - $this->marginRightMm - $indentMm;
         if ($availableWidthMm <= 0) {
@@ -209,7 +209,7 @@ class Simple_Pdf {
         $style = $fontKey === 'F2' ? 'B' : '';
         $this->pdf->SetFont($this->fontFamilyForKey($fontKey), $style, $fontSize);
 
-        $lineHeightMm = $this->ptToMm($fontSize * 1.35);
+        $lineHeightMm = $this->ptToMm($fontSize * 1.30);
 
         $startX = $this->marginLeftMm;
         $startY = $this->pdf->GetY();
@@ -238,6 +238,11 @@ class Simple_Pdf {
 
     public function output(): string {
         return $this->pdf->Output('S');
+    }
+
+    public function get_page_count(): int {
+        $page = property_exists($this->pdf, 'page') ? (int)$this->pdf->page : 1;
+        return $page > 0 ? $page : 1;
     }
 
     private function registerFonts(): void {

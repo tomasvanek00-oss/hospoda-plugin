@@ -23,6 +23,8 @@ class Hospoda_Plugin {
     private $inline_printed = false;
     private $menu_preferences_cache = null;
     private $static_menu_cache = null;
+    private $sides_cache = null;
+    private $meal_terms_cache = [];
 
     /**
      * Returns inline <style> tag for front‑end, printed only once per request.
@@ -67,8 +69,8 @@ class Hospoda_Plugin {
         '.hsp-root .hsp-item{list-style:none;padding:0}' .
         '.hsp-root .hsp-static{margin:28px 0 0;padding:18px 20px;border:1px solid #f3d4b2;border-radius:12px;background:#fff7ed;box-shadow:0 1px 3px rgba(0,0,0,.04)}' .
         '.hsp-root .hsp-static__title{margin:0 0 10px;font-size:1.05em;letter-spacing:.08em;text-transform:uppercase;color:#b45309;font-weight:700}' .
-        '.hsp-root .hsp-static__list{margin:0;padding-left:20px;color:#4b5563;font-size:.97em}' .
-        '.hsp-root .hsp-static__list li{margin:4px 0}' ;
+        '.hsp-root .hsp-static__list{list-style:none;margin:0;padding:0;color:#4b5563;font-size:.97em;display:grid;gap:8px}' .
+        '.hsp-root .hsp-static__list li{margin:0}' ;
         return "\n<style id=\"hospoda-frontend-inline\">$css</style>\n";
     }
 
@@ -122,7 +124,7 @@ class Hospoda_Plugin {
             }
         }
         if (!$found) {
-            $fallback = '.hsp-week{display:grid;gap:2rem}.hsp-mains{list-style:none;margin:0;padding:0;display:grid;gap:1rem}.hsp-item{display:grid;gap:1rem;grid-template-columns:1fr auto;align-items:start}.hsp-price{white-space:nowrap;font-variant-numeric:tabular-nums}.hsp-sides{color:#7a7a7a}.hsp-static{margin:24px 0 0;padding:18px 20px;border:1px solid #f3d4b2;border-radius:12px;background:#fff7ed}.hsp-static__title{margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:#b45309}.hsp-static__list{margin:0;padding-left:20px}.hsp-static__list li{margin:4px 0}';
+            $fallback = '.hsp-week{display:grid;gap:2rem}.hsp-mains{list-style:none;margin:0;padding:0;display:grid;gap:1rem}.hsp-item{display:grid;gap:1rem;grid-template-columns:1fr auto;align-items:start}.hsp-price{white-space:nowrap;font-variant-numeric:tabular-nums}.hsp-sides{color:#7a7a7a}.hsp-static{margin:24px 0 0;padding:18px 20px;border:1px solid #f3d4b2;border-radius:12px;background:#fff7ed}.hsp-static__title{margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:#b45309}.hsp-static__list{list-style:none;margin:0;padding:0;display:grid;gap:8px}.hsp-static__list li{margin:0}';
             \wp_register_style('hospoda-frontend', false, [], VERSION);
             \wp_enqueue_style('hospoda-frontend');
             \wp_add_inline_style('hospoda-frontend', $fallback);
@@ -145,7 +147,7 @@ class Hospoda_Plugin {
              ".hsp-week .hsp-price{margin-left:1rem;white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}\n".
              ".hsp-root .hsp-static{margin-top:24px;padding:18px 20px;border:1px solid #f3d4b2;border-radius:12px;background:#fff7ed}\n".
              ".hsp-root .hsp-static__title{margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:#b45309}\n".
-             ".hsp-root .hsp-static__list{margin:0;padding-left:20px}\n".
+             ".hsp-root .hsp-static__list{list-style:none;margin:0;padding:0;display:grid;gap:8px}\n".
              "</style>\n";
     }
 
@@ -227,8 +229,8 @@ class Hospoda_Plugin {
 
         add_submenu_page(
             'hospoda-week',
-            'Nastavení exportu',
-            'Nastavení exportu',
+            'Nastavení',
+            'Nastavení',
             'edit_posts',
             'hospoda-week-branding',
             [$this,'render_branding_admin_page']
@@ -248,6 +250,7 @@ class Hospoda_Plugin {
     public function admin_assets($hook) {
         $is_week_page = ($hook === 'toplevel_page_hospoda-week');
         $is_branding_page = ($hook === 'hospoda-week_page_hospoda-week-branding');
+        $needs_autocomplete = (strpos((string)$hook, 'hospoda-week') !== false);
 
         if (!wp_style_is('hospoda-admin', 'registered')) {
             wp_register_style('hospoda-admin', false, [], VERSION);
@@ -280,9 +283,13 @@ class Hospoda_Plugin {
 .hs-week-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:28px}
 CSS;
             wp_add_inline_style('hospoda-admin', $css);
-            $css2 = '.ui-autocomplete{z-index:100000 !important; background:#fff; border:1px solid #ccd0d4; box-shadow:0 2px 6px rgba(0,0,0,.1)} .ui-autocomplete .ui-menu-item-wrapper{padding:6px 10px} .ui-state-active{background:#f0f6ff}';
-            wp_add_inline_style('hospoda-admin',$css2);
+        }
+
+        if ($needs_autocomplete) {
+            $css2 = '.ui-autocomplete{z-index:100000 !important;background:#fff;border:1px solid #ccd0d4;box-shadow:0 2px 6px rgba(0,0,0,.1)}.ui-autocomplete .ui-menu-item-wrapper{padding:6px 10px}.ui-state-active{background:#f0f6ff}';
+            wp_add_inline_style('hospoda-admin', $css2);
             wp_enqueue_script('jquery-ui-autocomplete');
+            wp_localize_script('jquery-ui-autocomplete', 'HOSPOS', ['nonce' => wp_create_nonce('hospoda_meal_search')]);
             $js = <<<'JS'
         (function($){
           function attachAutocomplete($ctx){
@@ -291,42 +298,122 @@ CSS;
               if ($input.data('ui-autocomplete')) return;
               $input.autocomplete({
                 source: function(req,res){
-                  $.get(ajaxurl, {_ajax_nonce:HOSPOS.nonce, action:'hospoda_meal_search', term:req.term}, function(data){ res(data); });
+                  $.get(ajaxurl, {_ajax_nonce:HOSPOS.nonce, action:'hospoda_meal_search', term:req.term}, function(data){
+                    if (Array.isArray(data)) { res(data); }
+                    else { res([]); }
+                  });
                 },
                 minLength: 2,
                 select: function(e,ui){
+                  if (!ui || !ui.item) { return false; }
                   $input.val(ui.item.label);
                   var $row = $input.closest('.row');
-                  $row.find('.meal-id').val(ui.item.id);
-                  // doplnit cenu
-                  if (ui.item.price !== undefined) { $row.find('.price').val(ui.item.price); }
-                  // doplnit přílohy
-                  if (ui.item.sides && ui.item.sides.length){
+                  $row.find('.meal-id').val(ui.item.id || '');
+                  if (ui.item.price !== undefined && ui.item.price !== null) {
+                    $row.find('.price').val(ui.item.price);
+                  }
+                  var allergenList = Array.isArray(ui.item.allergens) ? ui.item.allergens : [];
+                  $row.find('.meal-allergens').val(allergenList.length ? allergenList.join(',') : '');
+                  if ($row.find('.sides').length){
                     $row.find('.sides input[type=checkbox]').prop('checked', false);
-                    ui.item.sides.forEach(function(tid){
-                      $row.find('.sides input[type=checkbox][value="'+tid+'"]').prop('checked', true);
-                    });
+                    if (Array.isArray(ui.item.sides)){
+                      ui.item.sides.forEach(function(tid){
+                        $row.find('.sides input[type=checkbox][value="'+tid+'"]').prop('checked', true);
+                      });
+                    }
                   }
                   return false;
                 }
               });
+              $input.on('input', function(){
+                if (!$input.val()){
+                  var $row = $input.closest('.row');
+                  $row.find('.meal-id').val('');
+                  $row.find('.meal-allergens').val('');
+                }
+              });
             });
           }
-          $(document).on('click','#add-row', function(){
-            var idx = $('#mains .row.main').length;
-            var $clone = $('#mains .row.main').first().clone();
-            $clone.find('input').each(function(){
-              var $i = $(this);
-              if ($i.hasClass('meal-autocomplete')) { $i.val('').attr('name','mains['+idx+'][title]'); }
-              else if ($i.hasClass('meal-id')) { $i.val('').attr('name','mains['+idx+'][id]'); }
-              else if ($i.hasClass('price')) { $i.val('').attr('name','mains['+idx+'][price]'); }
-            });
-            $clone.find('.sides input[type=checkbox]').each(function(){
+
+          $(document).on('click','#add-row', function(e){
+            e.preventDefault();
+            var $wrap = $('#mains');
+            if (!$wrap.length) return;
+            var idx = $wrap.find('.row.main').length;
+            var $template = $wrap.find('.row.main').first();
+            var sidesHtml = $template.length ? ($template.find('.sides').html() || '') : '';
+            var tmpl = ''+
+              '<div class="row main">\n'+
+              '  <input class="meal-autocomplete" name="mains['+idx+'][title]" type="text" placeholder="Název jídla…" value="">\n'+
+              '  <input class="meal-id" type="hidden" name="mains['+idx+'][id]" value="">\n'+
+              '  <input class="meal-allergens" type="hidden" name="mains['+idx+'][allergens]" value="">\n'+
+              '  <input class="price" type="text" name="mains['+idx+'][price]" placeholder="Cena (Kč)" value="">\n'+
+              '  <div class="sides">'+sidesHtml+'</div>\n'+
+              '  <button type="button" class="button link-button remove-row">Odstranit</button>\n'+
+              '</div>';
+            var $row = $(tmpl);
+            $row.find('.sides input[type=checkbox]').each(function(){
               $(this).prop('checked', false).attr('name','mains['+idx+'][sides][]');
             });
-            $('#mains').append($clone);
-            attachAutocomplete($clone);
+            $wrap.append($row);
+            attachAutocomplete($row);
           });
+
+          $(document).on('click','.add-row-week', function(e){
+            e.preventDefault();
+            var idx = $(this).data('week-index');
+            if (typeof idx === 'undefined'){
+              idx = $(this).closest('fieldset').data('week-index');
+            }
+            var $wrap = $(this).closest('fieldset').find('.hs-mains');
+            if (!$wrap.length){
+              $wrap = $(this).closest('.hs-week-day').find('.hs-mains');
+            }
+            if (!$wrap.length){ return; }
+            var $rows = $wrap.find('.row.main');
+            var count = $rows.length;
+            var sidesHtml = $rows.length ? ($rows.first().find('.sides').html() || '') : '';
+            var tmpl = ''+
+              '<div class="row main">\n'+
+              '  <input class="meal-autocomplete" name="week[mains]['+idx+']['+count+'][title]" type="text" placeholder="Název jídla…" value="">\n'+
+              '  <input class="meal-id" type="hidden" name="week[mains]['+idx+']['+count+'][id]" value="">\n'+
+              '  <input class="meal-allergens" type="hidden" name="week[mains]['+idx+']['+count+'][allergens]" value="">\n'+
+              '  <input class="price" type="text" name="week[mains]['+idx+']['+count+'][price]" placeholder="Cena (Kč)" value="">\n'+
+              '  <div class="sides">'+sidesHtml+'</div>\n'+
+              '  <button type="button" class="button link-button remove-row" data-week-index="'+idx+'">Odstranit</button>\n'+
+              '</div>';
+            var $row = $(tmpl);
+            $row.find('.sides input[type=checkbox]').each(function(){
+              $(this).prop('checked', false).attr('name','week[mains]['+idx+']['+count+'][sides][]');
+            });
+            $wrap.append($row);
+            attachAutocomplete($row);
+          });
+
+          $(document).on('click','#hs-static-add', function(e){
+            e.preventDefault();
+            var $wrap = $('#hs-static-menu');
+            if (!$wrap.length){ return; }
+            var idx = $wrap.find('.row.main').length;
+            var $rows = $wrap.find('.row.main');
+            var sidesHtml = $rows.length ? ($rows.first().find('.sides').html() || '') : '';
+            var tmpl = ''+
+              '<div class="row main" data-static-index="'+idx+'">\n'+
+              '  <input class="meal-autocomplete" name="static_menu['+idx+'][title]" type="text" placeholder="Název jídla…" value="">\n'+
+              '  <input class="meal-id" type="hidden" name="static_menu['+idx+'][id]" value="">\n'+
+              '  <input class="meal-allergens" type="hidden" name="static_menu['+idx+'][allergens]" value="">\n'+
+              '  <input class="price" type="text" name="static_menu['+idx+'][price]" placeholder="Cena (Kč)" value="">\n'+
+              '  <div class="sides">'+sidesHtml+'</div>\n'+
+              '  <button type="button" class="button link-button remove-row" data-static-index="'+idx+'">Odstranit</button>\n'+
+              '</div>';
+            var $row = $(tmpl);
+            $row.find('.sides input[type=checkbox]').each(function(){
+              $(this).prop('checked', false).attr('name','static_menu['+idx+'][sides][]');
+            });
+            $wrap.append($row);
+            attachAutocomplete($row);
+          });
+
           $(document).on('click','.remove-row', function(){
             var $container = $(this).closest('.hs-mains');
             var $rows = $container.find('.row.main');
@@ -334,58 +421,52 @@ CSS;
               $(this).closest('.row.main').remove();
             }
           });
-          // Weekly editor: add row (build fresh row to avoid name collisions)
-          $(document).on('click','.add-row-week', function(e){ e.preventDefault();
-            var idx = $(this).data('week-index'); if (typeof idx === 'undefined'){ idx = $(this).closest('fieldset').data('week-index'); }
-            var $wrap = $(this).closest('fieldset').find('.hs-mains');
-            if (!$wrap.length){ $wrap = $(this).closest('.hs-week-day').find('.hs-mains'); }
-            if (!$wrap.length){ return; }
-            var $rows = $wrap.find('.row.main');
-            var count = $rows.length; // index noveho radku
 
-            // Vezmeme HTML příloh z prvního řádku dne (pokud existuje)
-            var sidesHtml = '';
-            if ($rows.length) {
-              sidesHtml = $rows.first().find('.sides').html() || '';
-            }
-
-            var tmpl = ''+
-              '<div class="row main">\n'+
-              '  <input class="meal-autocomplete" name="week[mains]['+idx+']['+count+'][title]" type="text" placeholder="Název jídla…" value="">\n'+
-              '  <input class="meal-id" type="hidden" name="week[mains]['+idx+']['+count+'][id]" value="">\n'+
-              '  <input class="price" type="text" name="week[mains]['+idx+']['+count+'][price]" placeholder="Cena (Kč)" value="">\n'+
-              '  <div class="sides">'+ sidesHtml +'</div>\n'+
-              '  <button type="button" class="button link-button remove-row" data-week-index="'+idx+'">Odstranit</button>\n'+
-              '</div>';
-
-            var $row = $(tmpl);
-            if (!$row.find('.sides').length){ $row.append('<div class="sides"></div>'); }
-            // Reset a správná jména pro checkboxy příloh
-            $row.find('.sides input[type=checkbox]').each(function(){
-              $(this).prop('checked', false).attr('name','week[mains]['+idx+']['+count+'][sides][]');
-            });
-
-            $wrap.append($row);
-            attachAutocomplete($row);
+          $(document).on('change','#hs-week-start', function(){
+            var d = $(this).val();
+            if(!d) return;
+            var url = new URL(window.location.href);
+            url.searchParams.set('week', d);
+            window.location.href = url.toString();
           });
-          // Weekly editor: change week start
-          $(document).on('change','#hs-week-start',function(){
-            var d=$(this).val(); if(!d) return;
-            var url=new URL(window.location.href);
-            url.searchParams.set('week',d);
-            window.location.href=url.toString();
-          });
+
           $(function(){ attachAutocomplete($(document)); });
         })(jQuery);
 JS;
-            wp_localize_script('jquery-ui-autocomplete','HOSPOS',['nonce'=>wp_create_nonce('hospoda_meal_search')]);
-            wp_add_inline_script('jquery-ui-autocomplete',$js);
+            wp_add_inline_script('jquery-ui-autocomplete', $js);
         }
 
         if ($is_branding_page) {
-            $css3 = '.hs-branding{margin:20px 0;padding:20px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;max-width:960px}.hs-branding h2{margin-top:0}.hs-branding__logo{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.hs-branding__preview{width:160px;min-height:120px;border:1px dashed #ccd0d4;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden}.hs-branding__preview img{max-width:100%;height:auto;display:block}.hs-branding__preview span{color:#777;font-style:italic}.hs-branding textarea{max-width:100%}.hs-branding .description{margin-top:4px;color:#555}.hs-branding__controls{display:flex;flex-direction:column;gap:8px}.hs-branding__static{margin-top:24px;padding-top:16px;border-top:1px solid #d8d8d8}';
+            $css3 = '.hs-branding{margin:20px 0;padding:20px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;max-width:960px}.hs-branding h2{margin-top:0}.hs-branding__logo{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.hs-branding__preview{width:160px;min-height:120px;border:1px dashed #ccd0d4;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden}.hs-branding__preview img{max-width:100%;height:auto;display:block}.hs-branding__preview span{color:#777;font-style:italic}.hs-branding textarea{max-width:100%}.hs-branding .description{margin-top:4px;color:#555}.hs-branding__controls{display:flex;flex-direction:column;gap:8px}.hs-branding__static{margin-top:24px;padding-top:16px;border-top:1px solid #d8d8d8}.hs-branding__static h2{margin:0 0 6px;font-size:18px}.hs-static-menu{display:flex;flex-direction:column;gap:14px;margin-top:12px}.hs-static-menu .row{display:flex;flex-wrap:wrap;gap:12px;padding:14px;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa}.hs-static-menu .row input.meal-autocomplete{flex:1 1 260px;min-width:220px}.hs-static-menu .row input.price{width:110px}.hs-static-menu .sides{display:flex;flex-wrap:wrap;gap:8px}.hs-static-menu .sides label{margin:0;padding:4px 10px;border:1px solid #d5d7db;border-radius:4px;background:#fff;font-size:13px}.hs-static-menu .remove-row{margin-left:auto}.hs-static-actions{margin-top:12px}';
             wp_add_inline_style('hospoda-admin', $css3);
         }
+    }
+
+    /**
+     * @return array{terms:array<int,\WP_Term|array>,map:array<int,string>}
+     */
+    private function get_sides_data(): array {
+        if (is_array($this->sides_cache)) {
+            return $this->sides_cache;
+        }
+
+        $terms = get_terms(['taxonomy' => TAX_SIDE, 'hide_empty' => false]);
+        if (\is_wp_error($terms)) {
+            $terms = [];
+        }
+
+        $map = [];
+        foreach ($terms as $term) {
+            $term_id = is_object($term) ? (int)$term->term_id : (int)($term['term_id'] ?? 0);
+            $term_name = is_object($term) ? (string)$term->name : (string)($term['name'] ?? '');
+            if ($term_id && $term_name !== '') {
+                $map[$term_id] = $term_name;
+            }
+        }
+
+        $this->sides_cache = ['terms' => $terms, 'map' => $map];
+
+        return $this->sides_cache;
     }
 
     private function get_pdf_branding_defaults(): array {
@@ -393,7 +474,7 @@ JS;
             'logo_id'     => 0,
             'top_text'    => "HOSPODA POD KOSTELEM\nJarošov nad Nežárkou\nDenní nabídka\nK hlavnímu jídlu polévka za 20 Kč · Kola 0,3 l k menu za 15 Kč\nVaříme PO–PÁ od 10:30 do 14:00. Objednávky přijímáme den předem do 16:00 na telefonu hospody nebo osobně u obsluhy.",
             'bottom_text' => "Seznam alergenů je k nahlédnutí u obsluhy. Pro více informací se ptejte personálu.\nV nabídce mohou nastat drobné změny podle dostupnosti surovin. Děkujeme za pochopení.",
-            'static_menu' => '',
+            'static_menu_items' => [],
         ];
     }
 
@@ -419,29 +500,32 @@ JS;
             $output['bottom_text'] = $this->sanitize_multiline_text((string)$stored['bottom_text']);
         }
 
-        if (isset($stored['static_menu'])) {
-            $output['static_menu'] = $this->sanitize_multiline_text((string)$stored['static_menu']);
+        $output['static_menu_items'] = [];
+        if (isset($stored['static_menu_items'])) {
+            $output['static_menu_items'] = $this->sanitize_static_menu_items($stored['static_menu_items']);
+        } elseif (isset($stored['static_menu'])) {
+            $output['static_menu_items'] = $this->convert_legacy_static_menu((string)$stored['static_menu']);
         }
 
         return $output;
     }
 
-    private function get_static_menu_lines(): array {
+    private function get_static_menu_items(): array {
         if (is_array($this->static_menu_cache)) {
             return $this->static_menu_cache;
         }
 
         $branding = $this->get_pdf_branding_settings();
-        $raw = (string)($branding['static_menu'] ?? '');
-        $raw = str_replace(["\r\n", "\r"], "\n", $raw);
-        $lines = array_map('trim', explode("\n", $raw));
-        $lines = array_values(array_filter($lines, static function ($line) {
-            return $line !== '';
-        }));
+        $items = $branding['static_menu_items'] ?? [];
+        if (!is_array($items)) {
+            $items = [];
+        }
 
-        $this->static_menu_cache = $lines;
+        $items = $this->sanitize_static_menu_items($items);
 
-        return $lines;
+        $this->static_menu_cache = $items;
+
+        return $items;
     }
 
     private function get_menu_preferences(): array {
@@ -481,6 +565,220 @@ JS;
         return implode("\n", $lines);
     }
 
+    /**
+     * @param mixed $value
+     * @return array<int,array{id:int,title:string,price:string,sides:array<int,int>,allergens:array<int,int>}>
+     */
+    private function sanitize_static_menu_items($value): array {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($value as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $id = isset($row['id']) ? intval($row['id']) : 0;
+            $title = isset($row['title']) ? sanitize_text_field($row['title']) : '';
+            $price = isset($row['price']) ? sanitize_text_field($row['price']) : '';
+
+            $sides = [];
+            if (!empty($row['sides']) && is_array($row['sides'])) {
+                foreach ($row['sides'] as $side) {
+                    $side_id = (int)$side;
+                    if ($side_id > 0) {
+                        $sides[] = $side_id;
+                    }
+                }
+            }
+            $sides = array_values(array_unique($sides));
+
+            $allergens = $this->sanitize_allergen_list($row['allergens'] ?? []);
+
+            if ($title === '' && $id <= 0) {
+                continue;
+            }
+
+            $item = [
+                'id' => $id,
+                'title' => $title,
+                'price' => $price,
+                'sides' => $sides,
+                'allergens' => $allergens,
+            ];
+
+            $items[] = $this->apply_meal_defaults_to_item($item);
+        }
+
+        return array_values($items);
+    }
+
+    /**
+     * @param array<int,mixed> $rows
+     * @return array<int,array{id:int,title:string,price:string,sides:array<int,int>,allergens:array<int,int>}>
+     */
+    private function prepare_static_menu_submission(array $rows): array {
+        $items = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $title_raw = isset($row['title']) ? sanitize_text_field(wp_unslash($row['title'])) : '';
+            $id = isset($row['id']) ? intval($row['id']) : 0;
+            if ($id <= 0 && $title_raw !== '') {
+                $id = $this->ensure_meal_exists($title_raw);
+            }
+            $title = $this->meal_title_by_id($id, $title_raw);
+
+            if ($title === '' && $id <= 0) {
+                continue;
+            }
+
+            $price = isset($row['price']) ? sanitize_text_field(wp_unslash($row['price'])) : '';
+
+            $sides = [];
+            if (isset($row['sides']) && is_array($row['sides'])) {
+                foreach ($row['sides'] as $side) {
+                    $side_id = (int)$side;
+                    if ($side_id > 0) {
+                        $sides[] = $side_id;
+                    }
+                }
+            }
+            $sides = array_values(array_unique($sides));
+
+            $allergens = $this->sanitize_allergen_list($row['allergens'] ?? []);
+
+            $item = [
+                'id'        => $id,
+                'title'     => $title,
+                'price'     => $price,
+                'sides'     => $sides,
+                'allergens' => $allergens,
+            ];
+
+            $items[] = $this->apply_meal_defaults_to_item($item);
+        }
+
+        return array_values($items);
+    }
+
+    private function apply_meal_defaults_to_item(array $item): array {
+        $id = isset($item['id']) ? (int)$item['id'] : 0;
+        $title = isset($item['title']) ? (string)$item['title'] : '';
+
+        if ($id > 0) {
+            $resolvedTitle = $this->meal_title_by_id($id, $title);
+            if ($resolvedTitle !== '') {
+                $item['title'] = $resolvedTitle;
+            }
+
+            if (empty($item['sides'])) {
+                $item['sides'] = $this->get_meal_term_ids($id, TAX_SIDE);
+            }
+
+            if (empty($item['allergens'])) {
+                $item['allergens'] = $this->get_meal_term_ids($id, TAX_ALLERGEN);
+            }
+
+            if (empty($item['price'])) {
+                $meta_price = get_post_meta($id, 'price', true);
+                if (is_string($meta_price) && $meta_price !== '') {
+                    $item['price'] = sanitize_text_field($meta_price);
+                }
+            }
+        }
+
+        $item['sides'] = array_values(array_unique(array_map('intval', $item['sides'] ?? [])));
+        $item['allergens'] = array_values(array_unique(array_map('intval', $item['allergens'] ?? [])));
+
+        return $item;
+    }
+
+    private function convert_legacy_static_menu(string $value): array {
+        $value = $this->sanitize_multiline_text($value);
+        if ($value === '') {
+            return [];
+        }
+
+        $lines = explode("\n", $value);
+        $items = [];
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+            $items[] = [
+                'id' => 0,
+                'title' => $line,
+                'price' => '',
+                'sides' => [],
+                'allergens' => [],
+            ];
+        }
+
+        return $items;
+    }
+
+    private function get_meal_term_ids(int $meal_id, string $taxonomy): array {
+        if ($meal_id <= 0) {
+            return [];
+        }
+
+        $cache_key = $taxonomy . ':' . $meal_id;
+        if (isset($this->meal_terms_cache[$cache_key])) {
+            return $this->meal_terms_cache[$cache_key];
+        }
+
+        $terms = wp_get_object_terms($meal_id, $taxonomy, ['fields' => 'ids']);
+        if (is_wp_error($terms) || !is_array($terms)) {
+            $this->meal_terms_cache[$cache_key] = [];
+            return [];
+        }
+
+        $ids = array_values(array_unique(array_map('intval', $terms)));
+        $this->meal_terms_cache[$cache_key] = $ids;
+
+        return $ids;
+    }
+
+    /**
+     * @param mixed $value
+     * @return array<int,int>
+     */
+    private function sanitize_allergen_list($value): array {
+        if (is_string($value)) {
+            $value = preg_split('/[,\s]+/', $value) ?: [];
+        }
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $clean = [];
+        foreach ($value as $item) {
+            $code = (int)$item;
+            if ($code > 0) {
+                $clean[] = $code;
+            }
+        }
+
+        $clean = array_values(array_unique($clean));
+        sort($clean, SORT_NUMERIC);
+
+        return $clean;
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function format_allergens_field($value): string {
+        $list = $this->sanitize_allergen_list($value);
+        return empty($list) ? '' : implode(',', $list);
+    }
+
     private function resolve_branding_logo_path(int $attachment_id): string {
         if ($attachment_id <= 0) {
             return '';
@@ -510,40 +808,72 @@ JS;
      */
     private function last_usage_data($meal_id = 0, $title = ''){
         $title = trim((string)$title);
-        $result = ['price'=>'','sides'=>[],'allergens'=>[]];
+        $result = ['price' => '', 'sides' => [], 'allergens' => []];
+
+        if ($meal_id > 0) {
+            $result['sides'] = $this->get_meal_term_ids($meal_id, TAX_SIDE);
+            $result['allergens'] = $this->get_meal_term_ids($meal_id, TAX_ALLERGEN);
+
+            $meta_price = get_post_meta($meal_id, 'price', true);
+            if (is_string($meta_price) && $meta_price !== '') {
+                $result['price'] = sanitize_text_field($meta_price);
+            }
+        }
+
         $since = date('Y-m-d', strtotime('-180 days'));
         $days = get_posts([
-            'post_type'=>CPT_DAY,
-            'posts_per_page'=>300,
-            'meta_query'=>[
-                ['key'=>'menu_date','value'=>$since,'compare'=>'>=']
+            'post_type'      => CPT_DAY,
+            'posts_per_page' => 300,
+            'meta_query'     => [
+                ['key' => 'menu_date', 'value' => $since, 'compare' => '>='],
             ],
-            'orderby'=>'meta_value','meta_key'=>'menu_date','order'=>'DESC'
+            'orderby'        => 'meta_value',
+            'meta_key'       => 'menu_date',
+            'order'          => 'DESC',
         ]);
-        foreach($days as $p){
-            $mains = get_post_meta($p->ID,'mains',true);
-            if (is_array($mains)){
-                foreach($mains as $row){
+        foreach ($days as $p) {
+            $mains = get_post_meta($p->ID, 'mains', true);
+            if (is_array($mains)) {
+                foreach ($mains as $row) {
                     $match = false;
-                    if ($meal_id && !empty($row['id']) && intval($row['id']) === intval($meal_id)) $match = true;
-                    elseif ($title !== '' && !empty($row['title']) && strcasecmp($row['title'],$title)===0) $match = true;
-                    if ($match){
-                        $result['price'] = $row['price'] ?? '';
-                        $result['sides'] = array_map('intval', $row['sides'] ?? []);
-                        $result['allergens'] = array_map('intval', $row['allergens'] ?? []);
+                    if ($meal_id && !empty($row['id']) && intval($row['id']) === intval($meal_id)) {
+                        $match = true;
+                    } elseif ($title !== '' && !empty($row['title']) && strcasecmp($row['title'], $title) === 0) {
+                        $match = true;
+                    }
+                    if ($match) {
+                        if (!empty($row['price'])) {
+                            $result['price'] = sanitize_text_field($row['price']);
+                        }
+                        $row_sides = array_map('intval', $row['sides'] ?? []);
+                        if (!empty($row_sides)) {
+                            $result['sides'] = array_values(array_unique($row_sides));
+                        }
+                        $row_allergens = array_map('intval', $row['allergens'] ?? []);
+                        if (!empty($row_allergens)) {
+                            $result['allergens'] = array_values(array_unique($row_allergens));
+                        }
                         return $result; // první (nejnovější)
                     }
                 }
             }
-            $soup = get_post_meta($p->ID,'soup',true);
-            if (!empty($soup)){
+            $soup = get_post_meta($p->ID, 'soup', true);
+            if (!empty($soup)) {
                 $match = false;
-                if ($meal_id && !empty($soup['id']) && intval($soup['id']) === intval($meal_id)) $match = true;
-                elseif ($title !== '' && !empty($soup['title']) && strcasecmp($soup['title'],$title)===0) $match = true;
-                if ($match){
-                    $result['price'] = $soup['price'] ?? '';
+                if ($meal_id && !empty($soup['id']) && intval($soup['id']) === intval($meal_id)) {
+                    $match = true;
+                } elseif ($title !== '' && !empty($soup['title']) && strcasecmp($soup['title'], $title) === 0) {
+                    $match = true;
+                }
+                if ($match) {
+                    if (!empty($soup['price'])) {
+                        $result['price'] = sanitize_text_field($soup['price']);
+                    }
                     $result['sides'] = []; // polévky obvykle bez příloh
-                    $result['allergens'] = array_map('intval', $soup['allergens'] ?? []);
+                    $row_allergens = array_map('intval', $soup['allergens'] ?? []);
+                    if (!empty($row_allergens)) {
+                        $result['allergens'] = array_values(array_unique($row_allergens));
+                    }
                     return $result;
                 }
             }
@@ -649,7 +979,8 @@ JS;
             $data['soup'] = get_post_meta($id,'soup',true);
             $data['mains'] = get_post_meta($id,'mains',true);
         }
-        $sides = get_terms(['taxonomy'=>TAX_SIDE,'hide_empty'=>false]);
+        $sides_data = $this->get_sides_data();
+        $sides = $sides_data['terms'];
         ?>
         <div class="wrap">
           <h1>Polední menu – dne <?php echo esc_html($today); ?></h1>
@@ -660,6 +991,7 @@ JS;
             <div class="row soup">
              <input class="meal-autocomplete" name="soup[title]" type="text" placeholder="Polévka – začněte psát…" value="<?php echo esc_attr($data['soup']['title'] ?? ''); ?>">
               <input class="meal-id" type="hidden" name="soup[id]" value="<?php echo esc_attr($data['soup']['id'] ?? ''); ?>">
+              <input class="meal-allergens" type="hidden" name="soup[allergens]" value="<?php echo esc_attr($this->format_allergens_field($data['soup']['allergens'] ?? [])); ?>">
               <input class="price" type="text" name="soup[price]" placeholder="Cena (Kč)" value="<?php echo esc_attr($data['soup']['price'] ?? ''); ?>">
             </div>
             <div id="mains" class="hs-mains">
@@ -683,6 +1015,7 @@ JS;
         <div class="row main">
           <input class="meal-autocomplete" name="mains[<?php echo esc_attr($i); ?>][title]" type="text" placeholder="Název jídla…" value="<?php echo esc_attr($row['title'] ?? ''); ?>">
           <input class="meal-id" type="hidden" name="mains[<?php echo esc_attr($i); ?>][id]" value="<?php echo esc_attr($row['id'] ?? ''); ?>">
+          <input class="meal-allergens" type="hidden" name="mains[<?php echo esc_attr($i); ?>][allergens]" value="<?php echo esc_attr($this->format_allergens_field($row['allergens'] ?? [])); ?>">
           <input class="price" type="text" name="mains[<?php echo esc_attr($i); ?>][price]" placeholder="Cena (Kč)" value="<?php echo esc_attr($row['price'] ?? ''); ?>">
           <div class="sides">
             <?php foreach ($sides as $side): $term_id = is_object($side)?$side->term_id:$side['term_id']; $term_name = is_object($side)?$side->name:$side['name']; ?>
@@ -706,9 +1039,10 @@ JS;
         $soup_id = isset($soup_in['id']) ? intval($soup_in['id']) : 0;
         if (!$soup_id && !empty($soup_in['title'])){ $soup_id = $this->ensure_meal_exists($soup_in['title']); }
         $soup = [
-            'id'=>$soup_id,
-            'title'=>$this->meal_title_by_id($soup_id,sanitize_text_field($soup_in['title']??'')),
-            'price'=>sanitize_text_field($soup_in['price']??''),
+            'id'        => $soup_id,
+            'title'     => $this->meal_title_by_id($soup_id,sanitize_text_field($soup_in['title']??'')),
+            'price'     => sanitize_text_field($soup_in['price']??''),
+            'allergens' => $this->sanitize_allergen_list($soup_in['allergens'] ?? []),
         ];
         update_post_meta($post_id,'soup',$soup);
         $mains=[];
@@ -719,7 +1053,8 @@ JS;
                 'id'=>$id,
                 'title'=>$this->meal_title_by_id($id,sanitize_text_field($row['title']??'')),
                 'price'=>sanitize_text_field($row['price']??''),
-                'sides'=>array_map('intval',$row['sides']??[])
+                'sides'=>array_values(array_unique(array_map('intval',$row['sides']??[]))),
+                'allergens'=>$this->sanitize_allergen_list($row['allergens'] ?? []),
             ];
         }
         update_post_meta($post_id,'mains',$mains);
@@ -745,6 +1080,7 @@ JS;
             <div class="row soup">
               <input class="meal-autocomplete" name="week[soup][<?php echo esc_attr($index); ?>][title]" type="text" placeholder="Polévka – začněte psát…" value="<?php echo esc_attr($data['soup']['title'] ?? ''); ?>">
               <input class="meal-id" type="hidden" name="week[soup][<?php echo esc_attr($index); ?>][id]" value="<?php echo esc_attr($data['soup']['id'] ?? ''); ?>">
+              <input class="meal-allergens" type="hidden" name="week[soup][<?php echo esc_attr($index); ?>][allergens]" value="<?php echo esc_attr($this->format_allergens_field($data['soup']['allergens'] ?? [])); ?>">
               <input class="price" type="text" name="week[soup][<?php echo esc_attr($index); ?>][price]" placeholder="Cena (Kč)" value="<?php echo esc_attr($data['soup']['price'] ?? ''); ?>">
             </div>
           </div>
@@ -760,6 +1096,7 @@ JS;
                       <div class="row main">
                         <input class="meal-autocomplete" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][title]" type="text" placeholder="Název jídla…" value="<?php echo esc_attr($row['title'] ?? ''); ?>">
                         <input class="meal-id" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][id]" value="<?php echo esc_attr($row['id'] ?? ''); ?>">
+                        <input class="meal-allergens" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][allergens]" value="<?php echo esc_attr($this->format_allergens_field($row['allergens'] ?? [])); ?>">
                         <input class="price" type="text" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][price]" placeholder="Cena (Kč)" value="<?php echo esc_attr($row['price'] ?? ''); ?>">
                         <div class="sides">
                           <?php foreach ($sides as $side): $term_id = is_object($side)?$side->term_id:(isset($side['term_id'])?$side['term_id']:''); $term_name = is_object($side)?$side->name:(isset($side['name'])?$side['name']:''); ?>
@@ -776,6 +1113,7 @@ JS;
                   <div class="row main">
                     <input class="meal-autocomplete" name="week[mains][<?php echo esc_attr($index); ?>][0][title]" type="text" placeholder="Název jídla…" value="">
                     <input class="meal-id" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][0][id]" value="">
+                    <input class="meal-allergens" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][0][allergens]" value="">
                     <input class="price" type="text" name="week[mains][<?php echo esc_attr($index); ?>][0][price]" placeholder="Cena (Kč)" value="">
                     <div class="sides">
                       <?php foreach ($sides as $side): $term_id = is_object($side)?$side->term_id:(isset($side['term_id'])?$side['term_id']:''); $term_name = is_object($side)?$side->name:(isset($side['name'])?$side['name']:''); ?>
@@ -812,18 +1150,9 @@ JS;
             $day_ts = strtotime("+{$i} day", $monday_ts);
             $dates[$i] = $day_ts ? date('Y-m-d', $day_ts) : date('Y-m-d', $monday_ts);
         }
-        $sides_terms = get_terms(['taxonomy'=>TAX_SIDE,'hide_empty'=>false]);
-        if (\is_wp_error($sides_terms)) {
-            $sides_terms = [];
-        }
-        $sides_map = [];
-        foreach ($sides_terms as $side) {
-            $term_id = is_object($side) ? (int)$side->term_id : (int)($side['term_id'] ?? 0);
-            $term_name = is_object($side) ? $side->name : ($side['name'] ?? '');
-            if ($term_id) {
-                $sides_map[$term_id] = $term_name;
-            }
-        }
+        $sides_data = $this->get_sides_data();
+        $sides_terms = $sides_data['terms'];
+        $sides_map = $sides_data['map'];
 
         $days_data=[];
         for($i=0;$i<5;$i++){
@@ -876,7 +1205,7 @@ JS;
             <div class="notice notice-success is-dismissible"><p>Týdenní menu bylo uloženo.</p></div>
           <?php endif; ?>
           <p>
-            <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=hospoda-week-branding')); ?>">Nastavení PDF exportu</a>
+            <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=hospoda-week-branding')); ?>">Nastavení</a>
           </p>
           <form class="hs-form hs-week-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <?php wp_nonce_field('hospoda_save_week'); ?>
@@ -911,13 +1240,20 @@ JS;
         $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : '';
         $preferences = $this->get_menu_preferences();
         $soup_mode = $preferences['soup_price_mode'] ?? 'included';
-        $static_menu = (string)($branding['static_menu'] ?? '');
+        $static_items = $branding['static_menu_items'] ?? [];
+        if (!is_array($static_items) || empty($static_items)) {
+            $static_items = [
+                ['id' => 0, 'title' => '', 'price' => '', 'sides' => [], 'allergens' => []],
+            ];
+        }
+        $sides_data = $this->get_sides_data();
+        $sides_terms = $sides_data['terms'];
         ?>
         <div class="wrap">
-          <h1>Nastavení PDF exportu</h1>
-          <p class="description">Nastavení použité při generování týdenního jídelního lístku do PDF.</p>
+          <h1>Nastavení</h1>
+          <p class="description">Upravte vzhled, stálou nabídku a další volby použité ve výpisech jídelníčku a při exportu do PDF.</p>
           <?php if (isset($_GET['branding_saved'])) : ?>
-            <div class="notice notice-success is-dismissible"><p>Nastavení PDF exportu bylo uloženo.</p></div>
+            <div class="notice notice-success is-dismissible"><p>Nastavení bylo uloženo.</p></div>
           <?php elseif (isset($_GET['branding_error'])) : ?>
             <div class="notice notice-error is-dismissible"><p>Nahrání loga se nezdařilo: <?php echo esc_html(rawurldecode(wp_unslash($_GET['branding_error']))); ?></p></div>
           <?php endif; ?>
@@ -953,11 +1289,38 @@ JS;
               <span class="description">Řádky se zobrazí pod seznamem jídel v patičce PDF.</span>
             </p>
             <div class="hs-branding__static">
-              <p>
-                <label for="hs-branding-static"><strong>Stálá nabídka</strong></label><br>
-                <textarea name="branding_static" id="hs-branding-static" rows="4" class="large-text code"><?php echo esc_textarea($static_menu); ?></textarea>
-                <span class="description">Každý řádek se zobrazí jako položka stálé nabídky v PDF i na webu pod aktuálním menu.</span>
-              </p>
+              <h2>Stálá nabídka</h2>
+              <p class="description">Vyberte položky z knihovny jídel. Budou zobrazeny pod týdenním menu na webu i v PDF exportu.</p>
+              <div id="hs-static-menu" class="hs-static-menu hs-mains">
+                <?php foreach ($static_items as $index => $item) :
+                    $item_id = (int)($item['id'] ?? 0);
+                    $item_title = (string)($item['title'] ?? '');
+                    $item_price = (string)($item['price'] ?? '');
+                    $item_sides = is_array($item['sides'] ?? null) ? array_map('intval', $item['sides']) : [];
+                    $item_allergens = is_array($item['allergens'] ?? null) ? array_map('intval', $item['allergens']) : [];
+                    $allergen_value = $this->format_allergens_field($item_allergens);
+                    ?>
+                    <div class="row main" data-static-index="<?php echo esc_attr($index); ?>">
+                      <input class="meal-autocomplete" name="static_menu[<?php echo esc_attr($index); ?>][title]" type="text" placeholder="Název jídla…" value="<?php echo esc_attr($item_title); ?>">
+                      <input class="meal-id" type="hidden" name="static_menu[<?php echo esc_attr($index); ?>][id]" value="<?php echo esc_attr($item_id); ?>">
+                      <input class="meal-allergens" type="hidden" name="static_menu[<?php echo esc_attr($index); ?>][allergens]" value="<?php echo esc_attr($allergen_value); ?>">
+                      <input class="price" type="text" name="static_menu[<?php echo esc_attr($index); ?>][price]" placeholder="Cena (Kč)" value="<?php echo esc_attr($item_price); ?>">
+                      <div class="sides">
+                        <?php foreach ($sides_terms as $side) :
+                            $term_id = is_object($side) ? $side->term_id : ($side['term_id'] ?? 0);
+                            $term_name = is_object($side) ? $side->name : ($side['name'] ?? '');
+                            if (!$term_id) {
+                                continue;
+                            }
+                            ?>
+                            <label><input type="checkbox" name="static_menu[<?php echo esc_attr($index); ?>][sides][]" value="<?php echo esc_attr($term_id); ?>" <?php checked(in_array((int)$term_id, $item_sides, true)); ?>> <?php echo esc_html($term_name); ?></label>
+                        <?php endforeach; ?>
+                      </div>
+                      <button type="button" class="button link-button remove-row" data-static-index="<?php echo esc_attr($index); ?>">Odstranit</button>
+                    </div>
+                <?php endforeach; ?>
+              </div>
+              <p class="hs-static-actions"><button type="button" class="button" id="hs-static-add">Přidat položku</button></p>
             </div>
             <fieldset class="hs-branding__soup">
               <legend><strong>Zobrazení ceny polévky</strong></legend>
@@ -966,7 +1329,7 @@ JS;
               <p class="description">Nastavení ovlivní veřejné zobrazení jídelníčku i export do PDF.</p>
             </fieldset>
             <p>
-              <button type="submit" class="button button-primary">Uložit nastavení PDF</button>
+              <button type="submit" class="button button-primary">Uložit nastavení</button>
               <a class="button button-secondary" href="<?php echo esc_url(admin_url('admin.php?page=hospoda-week')); ?>">Zpět na týdenní menu</a>
             </p>
           </form>
@@ -1010,9 +1373,10 @@ JS;
             $soup_id = isset($soup_in['id']) ? intval($soup_in['id']) : 0;
             if (!$soup_id && !empty($soup_in['title'])){ $soup_id = $this->ensure_meal_exists($soup_in['title']); }
             $soup = [
-                'id'    => $soup_id,
-                'title' => $this->meal_title_by_id($soup_id, sanitize_text_field($soup_in['title'] ?? '')),
-                'price' => sanitize_text_field($soup_in['price'] ?? ''),
+                'id'        => $soup_id,
+                'title'     => $this->meal_title_by_id($soup_id, sanitize_text_field($soup_in['title'] ?? '')),
+                'price'     => sanitize_text_field($soup_in['price'] ?? ''),
+                'allergens' => $this->sanitize_allergen_list($soup_in['allergens'] ?? []),
             ];
             update_post_meta($post_id, 'soup', $soup);
 
@@ -1026,7 +1390,8 @@ JS;
                     'id'    => $id,
                     'title' => $this->meal_title_by_id($id, sanitize_text_field($row['title'] ?? '')),
                     'price' => sanitize_text_field($row['price'] ?? ''),
-                    'sides' => array_map('intval', $row['sides'] ?? []),
+                    'sides' => array_values(array_unique(array_map('intval', $row['sides'] ?? []))),
+                    'allergens' => $this->sanitize_allergen_list($row['allergens'] ?? []),
                 ];
             }
             update_post_meta($post_id, 'mains', $mains);
@@ -1046,7 +1411,8 @@ JS;
         $remove_logo = !empty($_POST['branding_logo_remove']);
         $top = isset($_POST['branding_top']) ? sanitize_textarea_field(wp_unslash($_POST['branding_top'])) : '';
         $bottom = isset($_POST['branding_bottom']) ? sanitize_textarea_field(wp_unslash($_POST['branding_bottom'])) : '';
-        $static = isset($_POST['branding_static']) ? sanitize_textarea_field(wp_unslash($_POST['branding_static'])) : '';
+        $static_raw = isset($_POST['static_menu']) && is_array($_POST['static_menu']) ? wp_unslash($_POST['static_menu']) : [];
+        $static_items = $this->prepare_static_menu_submission($static_raw);
 
         $new_logo_id = $current_logo_id;
         $file = $_FILES['branding_logo_file'] ?? null;
@@ -1067,14 +1433,15 @@ JS;
         }
 
         $data = [
-            'logo_id'     => max(0, $new_logo_id),
-            'top_text'    => $this->sanitize_multiline_text($top),
-            'bottom_text' => $this->sanitize_multiline_text($bottom),
-            'static_menu' => $this->sanitize_multiline_text($static),
+            'logo_id'           => max(0, $new_logo_id),
+            'top_text'          => $this->sanitize_multiline_text($top),
+            'bottom_text'       => $this->sanitize_multiline_text($bottom),
+            'static_menu_items' => $static_items,
         ];
 
         update_option('hsp_pdf_branding', $data, false);
         $this->static_menu_cache = null;
+        $this->meal_terms_cache = [];
 
         $preferences = [
             'soup_price_mode' => $this->normalize_soup_price_mode(isset($_POST['soup_price_mode']) ? sanitize_text_field(wp_unslash($_POST['soup_price_mode'])) : ''),
@@ -1100,7 +1467,7 @@ JS;
         $exporter = new Week_Pdf_Exporter();
         $exportOptions = [
             'show_soup_price' => $this->should_show_soup_price(),
-            'static_menu'     => $this->get_static_menu_lines(),
+            'static_menu'     => $this->get_static_menu_items(),
         ];
         $pdf = $exporter->build($week, $branding, $exportOptions);
 
@@ -1245,17 +1612,51 @@ JS;
     }
 
     private function render_static_menu_block(): string {
-        $items = $this->get_static_menu_lines();
+        $items = $this->get_static_menu_items();
         if (empty($items)) {
             return '';
         }
+
+        $sides_map = $this->get_sides_data()['map'];
 
         ob_start();
         echo '<div class="hsp-static">';
         echo '<h4 class="hsp-static__title">Stálá nabídka</h4>';
         echo '<ul class="hsp-static__list">';
-        foreach ($items as $line) {
-            echo '<li>' . esc_html($line) . '</li>';
+        foreach ($items as $item) {
+            $title = trim((string)($item['title'] ?? ''));
+            if ($title === '') {
+                continue;
+            }
+            $price = trim((string)($item['price'] ?? ''));
+            $price_html = $price !== '' ? '<span class="hsp-price">' . esc_html($price) . ' Kč</span>' : '';
+
+            $sides_html = '';
+            if (!empty($item['sides']) && is_array($item['sides'])) {
+                $names = [];
+                foreach ($item['sides'] as $side_id) {
+                    $side_id = (int)$side_id;
+                    if ($side_id && isset($sides_map[$side_id])) {
+                        $names[] = $sides_map[$side_id];
+                    }
+                }
+                $names = array_values(array_filter($names, static function ($name) {
+                    return $name !== '';
+                }));
+                if (!empty($names)) {
+                    $sides_html = '<span class="hsp-sides">' . esc_html(implode(', ', $names)) . '</span>';
+                }
+            }
+
+            echo '<li class="hsp-item hsp-grid">';
+            echo '<span class="hsp-title">' . esc_html($title) . '</span>';
+            if ($sides_html !== '') {
+                echo $sides_html;
+            }
+            if ($price_html !== '') {
+                echo $price_html;
+            }
+            echo '</li>';
         }
         echo '</ul>';
         echo '</div>';
