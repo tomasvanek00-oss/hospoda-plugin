@@ -241,7 +241,10 @@ class Hospoda_Plugin {
         $is_week_page = ($hook === 'toplevel_page_hospoda-week');
         $is_branding_page = ($hook === 'hospoda-week_page_hospoda-week-branding');
 
-        wp_enqueue_style('hospoda-admin', false, [], VERSION);
+        if (!wp_style_is('hospoda-admin', 'registered')) {
+            wp_register_style('hospoda-admin', false, [], VERSION);
+        }
+        wp_enqueue_style('hospoda-admin');
 
         if ($is_week_page) {
             $css = <<<'CSS'
