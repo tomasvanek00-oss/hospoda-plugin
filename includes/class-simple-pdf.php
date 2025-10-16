@@ -241,8 +241,14 @@ class Simple_Pdf {
     }
 
     public function get_page_count(): int {
-        $page = property_exists($this->pdf, 'page') ? (int)$this->pdf->page : 1;
-        return $page > 0 ? $page : 1;
+        if (is_object($this->pdf) && method_exists($this->pdf, 'PageNo')) {
+            $page = (int) $this->pdf->PageNo();
+            if ($page > 0) {
+                return $page;
+            }
+        }
+
+        return 1;
     }
 
     private function registerFonts(): void {
