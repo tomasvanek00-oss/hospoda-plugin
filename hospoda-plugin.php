@@ -251,9 +251,10 @@ class Hospoda_Plugin {
 .hs-week-header input[type=date]{min-width:200px}
 .hs-week-header .description{margin:0;color:#4b5563;max-width:480px}
 .hs-week-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;margin-top:10px}
-.hs-week-day{border:1px solid #d6d6d6;padding:20px;background:#fff;border-radius:8px;box-shadow:0 2px 4px rgba(15,23,42,.04)}
-.hs-week-day legend{font-size:20px;margin:0 0 16px;display:flex;justify-content:space-between;align-items:baseline;font-weight:700;letter-spacing:.01em}
-.hs-week-day legend .hs-week-day__date{font-size:14px;font-weight:500;color:#5f6b7c}
+.hs-week-day{border:1px solid #d6d6d6;padding:20px;background:#fff;border-radius:12px;box-shadow:0 2px 4px rgba(15,23,42,.04)}
+.hs-week-day legend{margin:-20px -20px 16px;padding:18px 20px;border-bottom:1px solid #d3d9e5;border-radius:12px 12px 0 0;background:linear-gradient(135deg,#eef4ff,#f8fbff);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:inset 0 -1px 0 rgba(15,23,42,.06)}
+.hs-week-day .hs-week-day__name{font-size:22px;letter-spacing:.05em;text-transform:uppercase;color:#0f172a;font-weight:800}
+.hs-week-day legend .hs-week-day__date{font-size:14px;font-weight:600;color:#334155;text-transform:none;letter-spacing:0}
 .hs-week-section{margin-bottom:20px}
 .hs-week-section:last-of-type{margin-bottom:0}
 .hs-week-section-title{margin:0 0 10px;font-size:14px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#6b7280}
