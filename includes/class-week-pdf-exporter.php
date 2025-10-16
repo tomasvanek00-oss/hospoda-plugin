@@ -7,14 +7,17 @@ class Week_Pdf_Exporter {
      * Build PDF binary string for given week data structure.
      *
      * @param array{monday:string,labels:array<int,string>,dates:array<int,string>,days:array<int,array>,sides_map:array<int,string>} $week
+     * @param array<string,mixed> $branding
+     * @param array<string,mixed> $options
      */
-    public function build(array $week, array $branding = []): string {
+    public function build(array $week, array $branding = [], array $options = []): string {
         $pdf = new Simple_Pdf();
         $startTs = strtotime($week['monday']);
         $endDate = end($week['dates']);
         $endTs = $endDate ? strtotime($endDate) : false;
         $rangeLabel = $this->formatRange($startTs ?: time(), $endTs ?: $startTs ?: time());
         $rangeHuman = $this->formatHumanRange($startTs ?: time(), $endTs ?: $startTs ?: time());
+        $showSoupPrice = !empty($options['show_soup_price']);
 
         $pdf->set_title('Týdenní menu ' . $rangeLabel);
 
@@ -51,7 +54,7 @@ class Week_Pdf_Exporter {
             $pdf->add_text($heading, ['font' => 'F2', 'size' => 13.0, 'spacing_after' => 2.0]);
 
             $dayData = $week['days'][$index] ?? ['soup' => [], 'mains' => []];
-            $soupLine = $this->formatSoupLine($dayData['soup'] ?? []);
+            $soupLine = $this->formatSoupLine($dayData['soup'] ?? [], $showSoupPrice);
             $pdf->add_text($soupLine, ['indent' => 14.0, 'size' => 11.0, 'spacing_after' => 3.0]);
 
             $mains = $dayData['mains'] ?? [];
@@ -87,14 +90,14 @@ class Week_Pdf_Exporter {
     /**
      * @param array<string,mixed> $soup
      */
-    private function formatSoupLine(array $soup): string {
+    private function formatSoupLine(array $soup, bool $showPrice = true): string {
         $title = trim((string)($soup['title'] ?? ''));
         if ($title === '') {
             return 'Polévka: nenastaveno';
         }
         $line = 'Polévka: ' . $title;
         $price = trim((string)($soup['price'] ?? ''));
-        if ($price !== '') {
+        if ($showPrice && $price !== '') {
             $line .= ' — ' . $price . ' Kč';
         }
         $allergens = $this->formatAllergens($soup['allergens'] ?? []);

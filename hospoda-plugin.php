@@ -21,6 +21,7 @@ const TAX_ALLERGEN = 'meal_allergen';   // alergeny 1–14
 
 class Hospoda_Plugin {
     private $inline_printed = false;
+    private $menu_preferences_cache = null;
 
     /**
      * Returns inline <style> tag for front‑end, printed only once per request.
@@ -71,6 +72,7 @@ class Hospoda_Plugin {
         register_activation_hook(__FILE__, [$this,'activate']);
         // Instead of two separate menus, register only one for weekly menu
         add_action('admin_menu', [$this,'admin_menu_page']);
+        add_action('admin_menu', [$this,'adjust_admin_submenus'], 100);
         add_action('admin_enqueue_scripts', [$this,'admin_assets']);
         add_action('wp_ajax_hospoda_meal_search', [$this,'ajax_meal_search']);
         add_action('admin_post_hospoda_save_day', [$this,'handle_save_day']);
@@ -156,7 +158,10 @@ class Hospoda_Plugin {
     public function register_cpt_tax() {
         register_post_type(CPT_MEAL, [
             'labels'=>['name'=>'Jídla','singular_name'=>'Jídlo','menu_name'=>'Jídelní lístek'],
-            'public'=>false,'show_ui'=>true,'show_in_menu'=>true,'show_in_rest'=>true,
+            'public'=>false,
+            'show_ui'=>true,
+            'show_in_menu'=>false,
+            'show_in_rest'=>true,
             'supports'=>['title','editor','thumbnail']
         ]);
         register_taxonomy(TAX_SIDE, [CPT_MEAL], [
@@ -180,12 +185,44 @@ class Hospoda_Plugin {
     public function admin_menu_page() {
         add_menu_page(
             'Týdenní menu',            // page title
-            'Týdenní menu',            // menu title
+            'Hospoda',                 // menu title
             'edit_posts',              // capability
             'hospoda-week',            // menu slug (points directly to weekly editor)
             [$this,'render_week_admin_page'], // callback
             'dashicons-list-view',    // icon
             6                         // position
+        );
+
+        add_submenu_page(
+            'hospoda-week',
+            'Archiv jídel',
+            'Archiv jídel',
+            'edit_posts',
+            'edit.php?post_type=' . CPT_MEAL
+        );
+
+        add_submenu_page(
+            'hospoda-week',
+            'Přidat nové jídlo',
+            'Přidat nové jídlo',
+            'edit_posts',
+            'post-new.php?post_type=' . CPT_MEAL
+        );
+
+        add_submenu_page(
+            'hospoda-week',
+            'Přílohy',
+            'Přílohy',
+            'manage_categories',
+            'edit-tags.php?taxonomy=' . TAX_SIDE . '&post_type=' . CPT_MEAL
+        );
+
+        add_submenu_page(
+            'hospoda-week',
+            'Alergeny',
+            'Alergeny',
+            'manage_categories',
+            'edit-tags.php?taxonomy=' . TAX_ALLERGEN . '&post_type=' . CPT_MEAL
         );
 
         add_submenu_page(
@@ -196,6 +233,13 @@ class Hospoda_Plugin {
             'hospoda-week-branding',
             [$this,'render_branding_admin_page']
         );
+    }
+
+    public function adjust_admin_submenus() {
+        global $submenu;
+        if (isset($submenu['hospoda-week'][0])) {
+            $submenu['hospoda-week'][0][0] = 'Týdenní menu';
+        }
     }
 
     /**
@@ -349,6 +393,34 @@ JS;
         }
 
         return $output;
+    }
+
+    private function get_menu_preferences(): array {
+        if (is_array($this->menu_preferences_cache)) {
+            return $this->menu_preferences_cache;
+        }
+
+        $stored = get_option('hsp_menu_preferences', []);
+        if (!is_array($stored)) {
+            $stored = [];
+        }
+
+        $defaults = ['soup_price_mode' => 'included'];
+        $prefs = wp_parse_args($stored, $defaults);
+        $prefs['soup_price_mode'] = $this->normalize_soup_price_mode($prefs['soup_price_mode'] ?? '');
+
+        $this->menu_preferences_cache = $prefs;
+
+        return $prefs;
+    }
+
+    private function normalize_soup_price_mode(string $value): string {
+        return in_array($value, ['included', 'separate'], true) ? $value : 'included';
+    }
+
+    private function should_show_soup_price(): bool {
+        $prefs = $this->get_menu_preferences();
+        return ($prefs['soup_price_mode'] ?? 'included') === 'separate';
     }
 
     private function sanitize_multiline_text(string $value): string {
@@ -764,6 +836,8 @@ JS;
         $branding = $this->get_pdf_branding_settings();
         $logo_id = (int)($branding['logo_id'] ?? 0);
         $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : '';
+        $preferences = $this->get_menu_preferences();
+        $soup_mode = $preferences['soup_price_mode'] ?? 'included';
         ?>
         <div class="wrap">
           <h1>Nastavení PDF exportu</h1>
@@ -804,6 +878,12 @@ JS;
               <textarea name="branding_bottom" id="hs-branding-bottom" rows="4" class="large-text code"><?php echo esc_textarea($branding['bottom_text']); ?></textarea>
               <span class="description">Řádky se zobrazí pod seznamem jídel v patičce PDF.</span>
             </p>
+            <fieldset class="hs-branding__soup">
+              <legend><strong>Zobrazení ceny polévky</strong></legend>
+              <label><input type="radio" name="soup_price_mode" value="included" <?php checked('included', $soup_mode); ?>> Polévka je v ceně menu (nezobrazovat cenu zvlášť)</label><br>
+              <label><input type="radio" name="soup_price_mode" value="separate" <?php checked('separate', $soup_mode); ?>> Polévka se účtuje zvlášť (zobrazit cenu samostatně)</label>
+              <p class="description">Nastavení ovlivní veřejné zobrazení jídelníčku i export do PDF.</p>
+            </fieldset>
             <p>
               <button type="submit" class="button button-primary">Uložit nastavení PDF</button>
               <a class="button button-secondary" href="<?php echo esc_url(admin_url('admin.php?page=hospoda-week')); ?>">Zpět na týdenní menu</a>
@@ -912,6 +992,12 @@ JS;
 
         update_option('hsp_pdf_branding', $data, false);
 
+        $preferences = [
+            'soup_price_mode' => $this->normalize_soup_price_mode(isset($_POST['soup_price_mode']) ? sanitize_text_field(wp_unslash($_POST['soup_price_mode'])) : ''),
+        ];
+        update_option('hsp_menu_preferences', $preferences, false);
+        $this->menu_preferences_cache = null;
+
         wp_redirect(admin_url('admin.php?page=hospoda-week-branding&branding_saved=1'));
         exit;
     }
@@ -928,7 +1014,10 @@ JS;
         require_once __DIR__ . '/includes/class-week-pdf-exporter.php';
 
         $exporter = new Week_Pdf_Exporter();
-        $pdf = $exporter->build($week, $branding);
+        $exportOptions = [
+            'show_soup_price' => $this->should_show_soup_price(),
+        ];
+        $pdf = $exporter->build($week, $branding, $exportOptions);
 
         $monday_ts = strtotime($week['monday']);
         if ($monday_ts === false) {
@@ -968,7 +1057,11 @@ JS;
         echo '<p><strong>Datum:</strong> ' . esc_html( get_post_meta($post->ID,'menu_date',true) ) . '</p>';
         echo '<h4>Polévka</h4>';
         if (!empty($soup['title'])) {
-            echo '<p>' . esc_html($soup['title']) . (!empty($soup['price']) ? ' — '.esc_html($soup['price']).' Kč' : '') . '</p>';
+            $line = esc_html($soup['title']);
+            if ($this->should_show_soup_price() && !empty($soup['price'])) {
+                $line .= ' — ' . esc_html($soup['price']) . ' Kč';
+            }
+            echo '<p>' . $line . '</p>';
         } else {
             echo '<p><em>nenastaveno</em></p>';
         }
@@ -1028,6 +1121,7 @@ JS;
         $post_id = $posts[0]->ID;
         $soup  = get_post_meta($post_id,'soup',true);
         $mains = get_post_meta($post_id,'mains',true);
+        $show_soup_price = $this->should_show_soup_price();
         ob_start();
         echo '<div class="hsp-day" data-date="'.esc_attr($date).'">';
         $heading  = '<h4 class="hsp-day__heading">'.esc_html( wp_date('l', strtotime($date)) ).' • '.esc_html( wp_date('j. n. Y', strtotime($date)) );
@@ -1038,7 +1132,7 @@ JS;
         if (!empty($soup['title'])){
             echo '<div class="hsp-soup hsp-grid"'
                . '><span class="hsp-title"><strong>Polévka:</strong> '.esc_html($soup['title']).'</span>';
-            if (!empty($soup['price'])) echo '<span class="hsp-price">'.esc_html($soup['price']).' Kč</span>';
+            if ($show_soup_price && !empty($soup['price'])) echo '<span class="hsp-price">'.esc_html($soup['price']).' Kč</span>';
             echo '</div>';
         }
         if (!empty($mains) && is_array($mains)){
