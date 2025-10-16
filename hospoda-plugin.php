@@ -313,136 +313,8 @@ JS;
         }
 
         if ($is_branding_page) {
-            $css3 = '.hs-branding{margin:20px 0;padding:20px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;max-width:960px}.hs-branding h2{margin-top:0}.hs-branding__logo{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.hs-branding__preview{width:160px;min-height:120px;border:1px dashed #ccd0d4;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden}.hs-branding__preview img{max-width:100%;height:auto;display:block}.hs-branding__preview span{color:#777;font-style:italic}.hs-branding__buttons{display:flex;gap:8px;flex-wrap:wrap}.hs-branding textarea{max-width:100%}.hs-branding .description{margin-top:4px;color:#555}';
-            wp_add_inline_style('hospoda-admin',$css3);
-            wp_enqueue_media();
-            wp_register_script('hospoda-admin-branding', false, ['jquery', 'media-editor'], VERSION, true);
-            wp_enqueue_script('hospoda-admin-branding');
-            $branding_js = <<<'JS'
-        (function($){
-          $(function(){
-            var frame;
-            var $field = $('#hs-branding-logo-id');
-            var $preview = $('#hs-branding-logo-preview');
-            var $remove = $('.hs-branding-remove');
-            var initialUrl = $preview.data('currentUrl') || '';
-
-            function resolveUrl(data){
-              if (!data) {
-                return '';
-              }
-              var sizes = data.sizes || {};
-              if (sizes.medium && sizes.medium.url) {
-                return sizes.medium.url;
-              }
-              if (sizes.medium_large && sizes.medium_large.url) {
-                return sizes.medium_large.url;
-              }
-              if (sizes.large && sizes.large.url) {
-                return sizes.large.url;
-              }
-              if (sizes.full && sizes.full.url) {
-                return sizes.full.url;
-              }
-              return data.url || '';
-            }
-
-            function render(url){
-              if (url) {
-                $preview.data('currentUrl', url);
-                $preview.html('<img src="' + url.replace(/"/g, '&quot;') + '" alt="">');
-                $remove.prop('disabled', false);
-              } else {
-                $preview.data('currentUrl', '');
-                $preview.html('<span>Žádné logo</span>');
-                $remove.prop('disabled', true);
-              }
-            }
-
-            function ensureFrame(){
-              if (typeof wp === 'undefined' || !wp.media || !wp.media.attachment) {
-                return null;
-              }
-
-              if (!frame) {
-                frame = wp.media.frames.hsBranding = wp.media({
-                  className: 'media-frame hs-branding-frame',
-                  frame: 'select',
-                  title: 'Vyberte logo',
-                  library: { type: 'image' },
-                  button: { text: 'Použít logo' },
-                  multiple: false
-                });
-
-                frame.on('open', function(){
-                  var selection = frame.state().get('selection');
-                  var currentId = parseInt($field.val(), 10);
-                  if (currentId) {
-                    var attachment = wp.media.attachment(currentId);
-                    if (attachment) {
-                      if (attachment.fetch) {
-                        attachment.fetch();
-                      }
-                      selection.reset([attachment]);
-                    }
-                  }
-                });
-
-                frame.on('select', function(){
-                  var attachment = frame.state().get('selection').first();
-                  if (!attachment) {
-                    return;
-                  }
-                  attachment = attachment.toJSON();
-                  $field.val(attachment.id);
-                  render(resolveUrl(attachment));
-                });
-              }
-
-              return frame;
-            }
-
-            $('.hs-branding-select').on('click', function(event){
-              event.preventDefault();
-              var mediaFrame = ensureFrame();
-              if (!mediaFrame) {
-                window.alert('Knihovnu médií se nepodařilo načíst. Zkuste prosím obnovit stránku.');
-                return;
-              }
-              mediaFrame.open();
-            });
-
-            $remove.on('click', function(event){
-              event.preventDefault();
-              $field.val('');
-              render('');
-            });
-
-            if ($field.val()) {
-              if (initialUrl) {
-                render(initialUrl);
-              } else {
-                var attachmentId = parseInt($field.val(), 10);
-                if (attachmentId) {
-                  var attachment = (typeof wp !== 'undefined' && wp.media && wp.media.attachment)
-                    ? wp.media.attachment(attachmentId)
-                    : null;
-                  if (attachment && attachment.fetch) {
-                    attachment.fetch().done(function(){
-                      render(resolveUrl(attachment.toJSON()));
-                    }).fail(function(){
-                      render('');
-                    });
-                  }
-                }
-              }
-            } else {
-              render('');
-            }
-          });
-        })(jQuery);
-JS;
-            wp_add_inline_script('hospoda-admin-branding', $branding_js, 'after');
+            $css3 = '.hs-branding{margin:20px 0;padding:20px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;max-width:960px}.hs-branding h2{margin-top:0}.hs-branding__logo{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.hs-branding__preview{width:160px;min-height:120px;border:1px dashed #ccd0d4;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden}.hs-branding__preview img{max-width:100%;height:auto;display:block}.hs-branding__preview span{color:#777;font-style:italic}.hs-branding textarea{max-width:100%}.hs-branding .description{margin-top:4px;color:#555}.hs-branding__controls{display:flex;flex-direction:column;gap:8px}';
+            wp_add_inline_style('hospoda-admin', $css3);
         }
     }
 
@@ -898,25 +770,28 @@ JS;
           <p class="description">Nastavení použité při generování týdenního jídelního lístku do PDF.</p>
           <?php if (isset($_GET['branding_saved'])) : ?>
             <div class="notice notice-success is-dismissible"><p>Nastavení PDF exportu bylo uloženo.</p></div>
+          <?php elseif (isset($_GET['branding_error'])) : ?>
+            <div class="notice notice-error is-dismissible"><p>Nahrání loga se nezdařilo: <?php echo esc_html(rawurldecode(wp_unslash($_GET['branding_error']))); ?></p></div>
           <?php endif; ?>
-          <form class="hs-branding" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+          <form class="hs-branding" method="post" enctype="multipart/form-data" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <?php wp_nonce_field('hospoda_save_branding'); ?>
             <input type="hidden" name="action" value="hospoda_save_branding">
             <div class="hs-branding__logo">
-              <div id="hs-branding-logo-preview" class="hs-branding__preview" data-current-url="<?php echo esc_attr($logo_url); ?>">
+              <div class="hs-branding__preview">
                 <?php if ($logo_url) : ?>
                   <img src="<?php echo esc_url($logo_url); ?>" alt="">
                 <?php else : ?>
                   <span>Žádné logo</span>
                 <?php endif; ?>
               </div>
-              <div>
-                <input type="hidden" id="hs-branding-logo-id" name="branding_logo_id" value="<?php echo esc_attr($logo_id); ?>">
-                <div class="hs-branding__buttons">
-                  <button type="button" class="button hs-branding-select">Vybrat logo</button>
-                  <button type="button" class="button hs-branding-remove"<?php if (!$logo_url) echo ' disabled'; ?>>Odebrat logo</button>
-                </div>
-                <p class="description">Doporučené logo ve formátu PNG s průhledným pozadím.</p>
+              <div class="hs-branding__controls">
+                <input type="hidden" name="branding_logo_id" value="<?php echo esc_attr($logo_id); ?>">
+                <label for="hs-branding-logo-upload"><strong>Nové logo</strong></label>
+                <input type="file" id="hs-branding-logo-upload" name="branding_logo_file" accept="image/png,image/jpeg,image/svg+xml">
+                <?php if ($logo_id) : ?>
+                  <label><input type="checkbox" name="branding_logo_remove" value="1"> Odebrat aktuální logo</label>
+                <?php endif; ?>
+                <p class="description">Nahrajte nové logo (PNG, JPG nebo SVG). Pokud ponecháte pole prázdné, zůstane uložené logo beze změny.</p>
               </div>
             </div>
             <p>
@@ -1006,12 +881,31 @@ JS;
         }
         check_admin_referer('hospoda_save_branding');
 
-        $logo_id = isset($_POST['branding_logo_id']) ? intval($_POST['branding_logo_id']) : 0;
+        $current_logo_id = isset($_POST['branding_logo_id']) ? intval($_POST['branding_logo_id']) : 0;
+        $remove_logo = !empty($_POST['branding_logo_remove']);
         $top = isset($_POST['branding_top']) ? sanitize_textarea_field(wp_unslash($_POST['branding_top'])) : '';
         $bottom = isset($_POST['branding_bottom']) ? sanitize_textarea_field(wp_unslash($_POST['branding_bottom'])) : '';
 
+        $new_logo_id = $current_logo_id;
+        $file = $_FILES['branding_logo_file'] ?? null;
+        if ($file && isset($file['error']) && $file['error'] !== UPLOAD_ERR_NO_FILE) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            require_once ABSPATH . 'wp-admin/includes/media.php';
+            require_once ABSPATH . 'wp-admin/includes/image.php';
+
+            $upload_id = media_handle_upload('branding_logo_file', 0);
+            if (is_wp_error($upload_id)) {
+                $error_message = rawurlencode($upload_id->get_error_message());
+                wp_redirect(admin_url('admin.php?page=hospoda-week-branding&branding_error=' . $error_message));
+                exit;
+            }
+            $new_logo_id = (int) $upload_id;
+        } elseif ($remove_logo) {
+            $new_logo_id = 0;
+        }
+
         $data = [
-            'logo_id'     => max(0, $logo_id),
+            'logo_id'     => max(0, $new_logo_id),
             'top_text'    => $this->sanitize_multiline_text($top),
             'bottom_text' => $this->sanitize_multiline_text($bottom),
         ];
