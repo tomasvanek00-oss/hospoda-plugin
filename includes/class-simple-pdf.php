@@ -13,10 +13,10 @@ require_once __DIR__ . '/class-font-loader.php';
 class Simple_Pdf {
     private const PAGE_WIDTH_MM = 210.0; // A4
     private const PAGE_HEIGHT_MM = 297.0;
-    private const MARGIN_LEFT_PT = 48.0;
-    private const MARGIN_RIGHT_PT = 48.0;
-    private const MARGIN_TOP_PT = 54.0;
-    private const MARGIN_BOTTOM_PT = 54.0;
+    private const MARGIN_LEFT_PT = 44.0;
+    private const MARGIN_RIGHT_PT = 44.0;
+    private const MARGIN_TOP_PT = 48.0;
+    private const MARGIN_BOTTOM_PT = 48.0;
 
     /** @var \tFPDF */
     private $pdf;
@@ -72,7 +72,7 @@ class Simple_Pdf {
 
         $indentMm = $this->ptToMm($indentPt);
         $spacingAfterMm = $this->ptToMm($spacingAfterPt);
-        $lineHeightMm = $this->ptToMm($fontSize * 1.35);
+        $lineHeightMm = $this->ptToMm($fontSize * 1.28);
 
         $availableWidthMm = self::PAGE_WIDTH_MM - $this->marginLeftMm - $this->marginRightMm - $indentMm;
         if ($availableWidthMm <= 0) {

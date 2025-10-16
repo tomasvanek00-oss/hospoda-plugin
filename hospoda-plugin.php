@@ -22,6 +22,7 @@ const TAX_ALLERGEN = 'meal_allergen';   // alergeny 1–14
 class Hospoda_Plugin {
     private $inline_printed = false;
     private $menu_preferences_cache = null;
+    private $static_menu_cache = null;
 
     /**
      * Returns inline <style> tag for front‑end, printed only once per request.
@@ -63,7 +64,11 @@ class Hospoda_Plugin {
         '.hsp-root .hsp-soup{margin:0}' .
         /* meals list */
         '.hsp-root .hsp-mains{list-style:none;margin:0;padding:0}' .
-        '.hsp-root .hsp-item{list-style:none;padding:0}' ;
+        '.hsp-root .hsp-item{list-style:none;padding:0}' .
+        '.hsp-root .hsp-static{margin:28px 0 0;padding:18px 20px;border:1px solid #f3d4b2;border-radius:12px;background:#fff7ed;box-shadow:0 1px 3px rgba(0,0,0,.04)}' .
+        '.hsp-root .hsp-static__title{margin:0 0 10px;font-size:1.05em;letter-spacing:.08em;text-transform:uppercase;color:#b45309;font-weight:700}' .
+        '.hsp-root .hsp-static__list{margin:0;padding-left:20px;color:#4b5563;font-size:.97em}' .
+        '.hsp-root .hsp-static__list li{margin:4px 0}' ;
         return "\n<style id=\"hospoda-frontend-inline\">$css</style>\n";
     }
 
@@ -117,7 +122,7 @@ class Hospoda_Plugin {
             }
         }
         if (!$found) {
-            $fallback = '.hsp-week{display:grid;gap:2rem}.hsp-mains{list-style:none;margin:0;padding:0;display:grid;gap:1rem}.hsp-item{display:grid;gap:1rem;grid-template-columns:1fr auto;align-items:start}.hsp-price{white-space:nowrap;font-variant-numeric:tabular-nums}.hsp-sides{color:#7a7a7a}';
+            $fallback = '.hsp-week{display:grid;gap:2rem}.hsp-mains{list-style:none;margin:0;padding:0;display:grid;gap:1rem}.hsp-item{display:grid;gap:1rem;grid-template-columns:1fr auto;align-items:start}.hsp-price{white-space:nowrap;font-variant-numeric:tabular-nums}.hsp-sides{color:#7a7a7a}.hsp-static{margin:24px 0 0;padding:18px 20px;border:1px solid #f3d4b2;border-radius:12px;background:#fff7ed}.hsp-static__title{margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:#b45309}.hsp-static__list{margin:0;padding-left:20px}.hsp-static__list li{margin:4px 0}';
             \wp_register_style('hospoda-frontend', false, [], VERSION);
             \wp_enqueue_style('hospoda-frontend');
             \wp_add_inline_style('hospoda-frontend', $fallback);
@@ -138,6 +143,9 @@ class Hospoda_Plugin {
              ".hsp-week .hsp-title{font-weight:600}\n".
              ".hsp-week .hsp-sides{color:#7a7a7a;font-size:.9em;display:block}\n".
              ".hsp-week .hsp-price{margin-left:1rem;white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}\n".
+             ".hsp-root .hsp-static{margin-top:24px;padding:18px 20px;border:1px solid #f3d4b2;border-radius:12px;background:#fff7ed}\n".
+             ".hsp-root .hsp-static__title{margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:#b45309}\n".
+             ".hsp-root .hsp-static__list{margin:0;padding-left:20px}\n".
              "</style>\n";
     }
 
@@ -375,7 +383,7 @@ JS;
         }
 
         if ($is_branding_page) {
-            $css3 = '.hs-branding{margin:20px 0;padding:20px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;max-width:960px}.hs-branding h2{margin-top:0}.hs-branding__logo{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.hs-branding__preview{width:160px;min-height:120px;border:1px dashed #ccd0d4;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden}.hs-branding__preview img{max-width:100%;height:auto;display:block}.hs-branding__preview span{color:#777;font-style:italic}.hs-branding textarea{max-width:100%}.hs-branding .description{margin-top:4px;color:#555}.hs-branding__controls{display:flex;flex-direction:column;gap:8px}';
+            $css3 = '.hs-branding{margin:20px 0;padding:20px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;max-width:960px}.hs-branding h2{margin-top:0}.hs-branding__logo{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.hs-branding__preview{width:160px;min-height:120px;border:1px dashed #ccd0d4;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden}.hs-branding__preview img{max-width:100%;height:auto;display:block}.hs-branding__preview span{color:#777;font-style:italic}.hs-branding textarea{max-width:100%}.hs-branding .description{margin-top:4px;color:#555}.hs-branding__controls{display:flex;flex-direction:column;gap:8px}.hs-branding__static{margin-top:24px;padding-top:16px;border-top:1px solid #d8d8d8}';
             wp_add_inline_style('hospoda-admin', $css3);
         }
     }
@@ -385,6 +393,7 @@ JS;
             'logo_id'     => 0,
             'top_text'    => "HOSPODA POD KOSTELEM\nJarošov nad Nežárkou\nDenní nabídka\nK hlavnímu jídlu polévka za 20 Kč · Kola 0,3 l k menu za 15 Kč\nVaříme PO–PÁ od 10:30 do 14:00. Objednávky přijímáme den předem do 16:00 na telefonu hospody nebo osobně u obsluhy.",
             'bottom_text' => "Seznam alergenů je k nahlédnutí u obsluhy. Pro více informací se ptejte personálu.\nV nabídce mohou nastat drobné změny podle dostupnosti surovin. Děkujeme za pochopení.",
+            'static_menu' => '',
         ];
     }
 
@@ -410,7 +419,29 @@ JS;
             $output['bottom_text'] = $this->sanitize_multiline_text((string)$stored['bottom_text']);
         }
 
+        if (isset($stored['static_menu'])) {
+            $output['static_menu'] = $this->sanitize_multiline_text((string)$stored['static_menu']);
+        }
+
         return $output;
+    }
+
+    private function get_static_menu_lines(): array {
+        if (is_array($this->static_menu_cache)) {
+            return $this->static_menu_cache;
+        }
+
+        $branding = $this->get_pdf_branding_settings();
+        $raw = (string)($branding['static_menu'] ?? '');
+        $raw = str_replace(["\r\n", "\r"], "\n", $raw);
+        $lines = array_map('trim', explode("\n", $raw));
+        $lines = array_values(array_filter($lines, static function ($line) {
+            return $line !== '';
+        }));
+
+        $this->static_menu_cache = $lines;
+
+        return $lines;
     }
 
     private function get_menu_preferences(): array {
@@ -880,6 +911,7 @@ JS;
         $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : '';
         $preferences = $this->get_menu_preferences();
         $soup_mode = $preferences['soup_price_mode'] ?? 'included';
+        $static_menu = (string)($branding['static_menu'] ?? '');
         ?>
         <div class="wrap">
           <h1>Nastavení PDF exportu</h1>
@@ -920,6 +952,13 @@ JS;
               <textarea name="branding_bottom" id="hs-branding-bottom" rows="4" class="large-text code"><?php echo esc_textarea($branding['bottom_text']); ?></textarea>
               <span class="description">Řádky se zobrazí pod seznamem jídel v patičce PDF.</span>
             </p>
+            <div class="hs-branding__static">
+              <p>
+                <label for="hs-branding-static"><strong>Stálá nabídka</strong></label><br>
+                <textarea name="branding_static" id="hs-branding-static" rows="4" class="large-text code"><?php echo esc_textarea($static_menu); ?></textarea>
+                <span class="description">Každý řádek se zobrazí jako položka stálé nabídky v PDF i na webu pod aktuálním menu.</span>
+              </p>
+            </div>
             <fieldset class="hs-branding__soup">
               <legend><strong>Zobrazení ceny polévky</strong></legend>
               <label><input type="radio" name="soup_price_mode" value="included" <?php checked('included', $soup_mode); ?>> Polévka je v ceně menu (nezobrazovat cenu zvlášť)</label><br>
@@ -1007,6 +1046,7 @@ JS;
         $remove_logo = !empty($_POST['branding_logo_remove']);
         $top = isset($_POST['branding_top']) ? sanitize_textarea_field(wp_unslash($_POST['branding_top'])) : '';
         $bottom = isset($_POST['branding_bottom']) ? sanitize_textarea_field(wp_unslash($_POST['branding_bottom'])) : '';
+        $static = isset($_POST['branding_static']) ? sanitize_textarea_field(wp_unslash($_POST['branding_static'])) : '';
 
         $new_logo_id = $current_logo_id;
         $file = $_FILES['branding_logo_file'] ?? null;
@@ -1030,9 +1070,11 @@ JS;
             'logo_id'     => max(0, $new_logo_id),
             'top_text'    => $this->sanitize_multiline_text($top),
             'bottom_text' => $this->sanitize_multiline_text($bottom),
+            'static_menu' => $this->sanitize_multiline_text($static),
         ];
 
         update_option('hsp_pdf_branding', $data, false);
+        $this->static_menu_cache = null;
 
         $preferences = [
             'soup_price_mode' => $this->normalize_soup_price_mode(isset($_POST['soup_price_mode']) ? sanitize_text_field(wp_unslash($_POST['soup_price_mode'])) : ''),
@@ -1058,6 +1100,7 @@ JS;
         $exporter = new Week_Pdf_Exporter();
         $exportOptions = [
             'show_soup_price' => $this->should_show_soup_price(),
+            'static_menu'     => $this->get_static_menu_lines(),
         ];
         $pdf = $exporter->build($week, $branding, $exportOptions);
 
@@ -1201,6 +1244,25 @@ JS;
         return ob_get_clean();
     }
 
+    private function render_static_menu_block(): string {
+        $items = $this->get_static_menu_lines();
+        if (empty($items)) {
+            return '';
+        }
+
+        ob_start();
+        echo '<div class="hsp-static">';
+        echo '<h4 class="hsp-static__title">Stálá nabídka</h4>';
+        echo '<ul class="hsp-static__list">';
+        foreach ($items as $line) {
+            echo '<li>' . esc_html($line) . '</li>';
+        }
+        echo '</ul>';
+        echo '</div>';
+
+        return ob_get_clean();
+    }
+
     /**
      * Shortcode [poledni_menu] – den nebo celý týden
      * Použití:
@@ -1292,6 +1354,10 @@ JS;
             }
             echo '</div>';        // close .hsp-week
             echo '</div>';        // close #hsp-week-full
+            $static_html = $this->render_static_menu_block();
+            if ($static_html) {
+                echo $static_html;
+            }
             echo '</div>';        // close .hsp-root
             // Improved JS for toggle button
             echo '<script>(function(){var b=document.querySelector(".hsp-toggle");if(!b)return;var full=document.querySelector(b.getAttribute("data-target"));if(!full)return;var coll=document.querySelector(".hsp-collapsed");b.addEventListener("click",function(){var isHidden=full.classList.toggle("hsp-hidden");var expanded=!isHidden;if(coll){coll.classList.toggle("hsp-hidden", expanded);}b.setAttribute("aria-expanded", expanded?"true":"false");b.textContent=expanded?"Skrýt celý týden":"Zobrazit celý týden";if(expanded){setTimeout(function(){full.scrollIntoView({behavior:"smooth",block:"start"});},10);}});})();</script>';
@@ -1339,7 +1405,12 @@ if (dateEl){ dateEl.addEventListener("change", function(e){ e.preventDefault(); 
             $wrap = $this->inline_css_tag();
             $wrap .= '<div class="hsp-root"><div class="hsp-single">';
             if (!empty($a['heading'])) $wrap .= '<h3 class="hsp-single__title">'.esc_html($a['heading']).'</h3>';
-            $wrap .= $html . '</div></div>';
+            $wrap .= $html;
+            $static_html = $this->render_static_menu_block();
+            if ($static_html) {
+                $wrap .= $static_html;
+            }
+            $wrap .= '</div></div>';
             return $wrap;
         }
         return '<p><em>Dnešní menu není nastaveno.</em></p>';

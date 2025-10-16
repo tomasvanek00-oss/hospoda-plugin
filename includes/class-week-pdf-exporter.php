@@ -8,7 +8,7 @@ class Week_Pdf_Exporter {
      *
      * @param array{monday:string,labels:array<int,string>,dates:array<int,string>,days:array<int,array>,sides_map:array<int,string>} $week
      * @param array<string,mixed> $branding
-     * @param array<string,mixed> $options
+     * @param array{show_soup_price?:bool,static_menu?:array<int,string>} $options
      */
     public function build(array $week, array $branding = [], array $options = []): string {
         $pdf = new Simple_Pdf();
@@ -18,6 +18,7 @@ class Week_Pdf_Exporter {
         $rangeLabel = $this->formatRange($startTs ?: time(), $endTs ?: $startTs ?: time());
         $rangeHuman = $this->formatHumanRange($startTs ?: time(), $endTs ?: $startTs ?: time());
         $showSoupPrice = !empty($options['show_soup_price']);
+        $staticMenu = $this->normalizeStaticMenu($options['static_menu'] ?? []);
 
         $pdf->set_title('Týdenní menu ' . $rangeLabel);
 
@@ -26,13 +27,13 @@ class Week_Pdf_Exporter {
         $bottomCustom = !empty($branding['_bottom_custom']);
         if ($logoPath !== '') {
             $pdf->add_image_with_side_text($rangeHuman, $logoPath, [
-                'image_width' => 120.0,
-                'spacing_after' => 9.0,
-                'gap' => 16.0,
-                'text' => ['font' => 'F2', 'size' => 14.0, 'align' => 'L', 'spacing_after' => 0.0],
+                'image_width' => 100.0,
+                'spacing_after' => 8.0,
+                'gap' => 14.0,
+                'text' => ['font' => 'F2', 'size' => 13.0, 'align' => 'L', 'spacing_after' => 0.0],
             ]);
         } else {
-            $pdf->add_text($rangeHuman, ['font' => 'F2', 'size' => 14.0, 'align' => 'C', 'spacing_after' => 10.0]);
+            $pdf->add_text($rangeHuman, ['font' => 'F2', 'size' => 13.0, 'align' => 'C', 'spacing_after' => 8.0]);
         }
 
         $topLines = $this->extractLines($branding['top_text'] ?? '');
@@ -51,22 +52,30 @@ class Week_Pdf_Exporter {
         foreach ($week['dates'] as $index => $date) {
             $label = $week['labels'][$index] ?? '';
             $heading = trim($label . ' ' . $this->formatDate($date));
-            $pdf->add_text($heading, ['font' => 'F2', 'size' => 13.0, 'spacing_after' => 2.0]);
+            $pdf->add_text($heading, ['font' => 'F2', 'size' => 12.0, 'spacing_after' => 1.5]);
 
             $dayData = $week['days'][$index] ?? ['soup' => [], 'mains' => []];
             $soupLine = $this->formatSoupLine($dayData['soup'] ?? [], $showSoupPrice);
-            $pdf->add_text($soupLine, ['indent' => 14.0, 'size' => 11.0, 'spacing_after' => 3.0]);
+            $pdf->add_text($soupLine, ['indent' => 14.0, 'size' => 10.0, 'spacing_after' => 2.0]);
 
             $mains = $dayData['mains'] ?? [];
             if (!empty($mains)) {
                 foreach ($mains as $position => $row) {
                     $line = $this->formatMainLine($position + 1, $row, $week['sides_map']);
-                    $pdf->add_text($line, ['indent' => 20.0, 'size' => 11.0, 'spacing_after' => 2.0]);
+                    $pdf->add_text($line, ['indent' => 20.0, 'size' => 10.0, 'spacing_after' => 1.6]);
                 }
             } else {
-                $pdf->add_text('Žádná hlavní jídla nejsou nastavena.', ['indent' => 20.0, 'size' => 11.0, 'spacing_after' => 2.0]);
+                $pdf->add_text('Žádná hlavní jídla nejsou nastavena.', ['indent' => 20.0, 'size' => 10.0, 'spacing_after' => 1.6]);
             }
 
+            $pdf->add_spacer(4.0);
+        }
+
+        if (!empty($staticMenu)) {
+            $pdf->add_text('Stálá nabídka', ['font' => 'F2', 'size' => 11.5, 'spacing_after' => 2.2]);
+            foreach ($staticMenu as $line) {
+                $pdf->add_text('• ' . $line, ['indent' => 14.0, 'size' => 9.5, 'spacing_after' => 1.6]);
+            }
             $pdf->add_spacer(6.0);
         }
 
@@ -226,12 +235,12 @@ class Week_Pdf_Exporter {
      */
     private function getTopLineStyles(): array {
         return [
-            0 => ['font' => 'F2', 'size' => 22.0, 'align' => 'C', 'spacing_after' => 0.0],
-            1 => ['size' => 12.0, 'align' => 'C', 'spacing_after' => 8.0],
-            2 => ['font' => 'F2', 'size' => 16.0, 'align' => 'C', 'spacing_after' => 3.0],
-            3 => ['size' => 10.0, 'align' => 'C', 'spacing_after' => 8.0],
-            4 => ['size' => 10.0, 'align' => 'C', 'spacing_after' => 10.0],
-            'default' => ['size' => 11.0, 'align' => 'C', 'spacing_after' => 6.0],
+            0 => ['font' => 'F2', 'size' => 20.0, 'align' => 'C', 'spacing_after' => 0.0],
+            1 => ['size' => 11.0, 'align' => 'C', 'spacing_after' => 6.0],
+            2 => ['font' => 'F2', 'size' => 14.0, 'align' => 'C', 'spacing_after' => 2.0],
+            3 => ['size' => 9.5, 'align' => 'C', 'spacing_after' => 6.0],
+            4 => ['size' => 9.0, 'align' => 'C', 'spacing_after' => 7.0],
+            'default' => ['size' => 10.0, 'align' => 'C', 'spacing_after' => 5.0],
         ];
     }
 
@@ -240,9 +249,9 @@ class Week_Pdf_Exporter {
      */
     private function getBottomLineStyles(): array {
         return [
-            0 => ['size' => 9.0, 'spacing_after' => 3.0],
-            1 => ['size' => 9.0, 'spacing_after' => 4.0],
-            'default' => ['size' => 9.0, 'spacing_after' => 3.0],
+            0 => ['size' => 8.5, 'spacing_after' => 2.4],
+            1 => ['size' => 8.5, 'spacing_after' => 3.0],
+            'default' => ['size' => 8.5, 'spacing_after' => 2.4],
         ];
     }
 
@@ -262,11 +271,11 @@ class Week_Pdf_Exporter {
      */
     private function getTopLineFallback(): array {
         return [
-            ['text' => 'HOSPODA POD KOSTELEM', 'options' => ['font' => 'F2', 'size' => 22.0, 'align' => 'C', 'spacing_after' => 0.0]],
-            ['text' => 'Jarošov nad Nežárkou', 'options' => ['size' => 12.0, 'align' => 'C', 'spacing_after' => 8.0]],
-            ['text' => 'Denní nabídka', 'options' => ['font' => 'F2', 'size' => 16.0, 'align' => 'C', 'spacing_after' => 3.0]],
-            ['text' => 'K hlavnímu jídlu polévka za 20 Kč · Kola 0,3 l k menu za 15 Kč', 'options' => ['size' => 10.0, 'align' => 'C', 'spacing_after' => 8.0]],
-            ['text' => 'Vaříme PO–PÁ od 10:30 do 14:00. Objednávky přijímáme den předem do 16:00 na telefonu hospody nebo osobně u obsluhy.', 'options' => ['size' => 10.0, 'align' => 'C', 'spacing_after' => 10.0]],
+            ['text' => 'HOSPODA POD KOSTELEM', 'options' => ['font' => 'F2', 'size' => 20.0, 'align' => 'C', 'spacing_after' => 0.0]],
+            ['text' => 'Jarošov nad Nežárkou', 'options' => ['size' => 11.0, 'align' => 'C', 'spacing_after' => 6.0]],
+            ['text' => 'Denní nabídka', 'options' => ['font' => 'F2', 'size' => 14.0, 'align' => 'C', 'spacing_after' => 2.0]],
+            ['text' => 'K hlavnímu jídlu polévka za 20 Kč · Kola 0,3 l k menu za 15 Kč', 'options' => ['size' => 9.5, 'align' => 'C', 'spacing_after' => 6.0]],
+            ['text' => 'Vaříme PO–PÁ od 10:30 do 14:00. Objednávky přijímáme den předem do 16:00 na telefonu hospody nebo osobně u obsluhy.', 'options' => ['size' => 9.0, 'align' => 'C', 'spacing_after' => 7.0]],
         ];
     }
 
@@ -275,8 +284,31 @@ class Week_Pdf_Exporter {
      */
     private function getBottomLineFallback(): array {
         return [
-            ['text' => 'Seznam alergenů je k nahlédnutí u obsluhy. Pro více informací se ptejte personálu.', 'options' => ['size' => 9.0, 'spacing_after' => 3.0]],
-            ['text' => 'V nabídce mohou nastat drobné změny podle dostupnosti surovin. Děkujeme za pochopení.', 'options' => ['size' => 9.0, 'spacing_after' => 4.0]],
+            ['text' => 'Seznam alergenů je k nahlédnutí u obsluhy. Pro více informací se ptejte personálu.', 'options' => ['size' => 8.5, 'spacing_after' => 2.4]],
+            ['text' => 'V nabídce mohou nastat drobné změny podle dostupnosti surovin. Děkujeme za pochopení.', 'options' => ['size' => 8.5, 'spacing_after' => 3.0]],
         ];
+    }
+
+    /**
+     * @param mixed $value
+     * @return array<int,string>
+     */
+    private function normalizeStaticMenu($value): array {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $lines = [];
+        foreach ($value as $item) {
+            if (!is_string($item)) {
+                continue;
+            }
+            $text = trim($item);
+            if ($text !== '') {
+                $lines[] = $text;
+            }
+        }
+
+        return $lines;
     }
 }
