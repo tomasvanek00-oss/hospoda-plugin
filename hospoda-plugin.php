@@ -25,6 +25,7 @@ class Hospoda_Plugin {
     private $static_menu_cache = null;
     private $sides_cache = null;
     private $meal_terms_cache = [];
+    private $week_groups_cache = [];
 
     /**
      * Returns inline <style> tag for front‑end, printed only once per request.
@@ -273,6 +274,14 @@ class Hospoda_Plugin {
 .hs-week-header label{display:block;font-weight:600;margin-bottom:4px}
 .hs-week-header input[type=date]{min-width:200px}
 .hs-week-header .description{margin:0;color:#4b5563;max-width:480px}
+.hs-week-groups{margin:20px 0 10px;padding:16px 18px;border:1px solid #d9dde8;border-radius:12px;background:#f8fafc}
+.hs-week-groups legend{font-size:16px;font-weight:700;margin:0 0 8px;color:#0f172a}
+.hs-week-groups .description{margin:0 0 14px;color:#4b5563}
+.hs-week-menu-groups{display:flex;flex-direction:column;gap:12px}
+.hs-week-menu-group-config{display:flex;flex-wrap:wrap;gap:12px;padding:12px;border:1px solid #dbe3f4;border-radius:8px;background:#fff}
+.hs-week-menu-group-config label{display:flex;flex-direction:column;flex:1 1 220px;font-weight:600;font-size:13px;color:#334155}
+.hs-week-menu-group-config label input{margin-top:4px}
+.hs-week-menu-group-config .hs-week-menu-group-remove{margin-left:auto}
 .hs-week-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;margin-top:10px}
 .hs-week-day{border:1px solid #d6d6d6;padding:20px;background:#fff;border-radius:12px;box-shadow:0 2px 4px rgba(15,23,42,.04)}
 .hs-week-day legend{margin:-20px -20px 16px;padding:18px 20px;border-bottom:1px solid #d3d9e5;border-radius:12px 12px 0 0;background:linear-gradient(135deg,#eef4ff,#f8fbff);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:inset 0 -1px 0 rgba(15,23,42,.06)}
@@ -373,6 +382,51 @@ CSS;
             $wrap.append($row);
             attachAutocomplete($row);
           });
+
+          function syncWeekGroupDisplay(key){
+            var $config = $('.hs-week-menu-group-config[data-group-key="'+key+'"]').first();
+            var label = '';
+            var price = '';
+            if ($config.length){
+              label = $.trim($config.find('.js-week-group-label').val() || '');
+              price = $.trim($config.find('.js-week-group-price').val() || '');
+            }
+            $('.hs-week-menu-group[data-group-key="'+key+'"]').each(function(){
+              var $group = $(this);
+              var title = label || String(key).replace(/_/g,' ').toUpperCase();
+              $group.find('.hs-week-menu-group__title').text(title);
+              var $priceEl = $group.find('.hs-week-menu-group__price');
+              if (price){
+                if (!$priceEl.length){
+                  $priceEl = $('<span class="hs-week-menu-group__price"></span>').appendTo($group.find('.hs-week-menu-group__header'));
+                }
+                $priceEl.text(price);
+              } else {
+                $priceEl.remove();
+              }
+            });
+          }
+
+          function appendWeekGroupToDays(group){
+            $('.hs-week-day').each(function(){
+              var $day = $(this);
+              var idx = $day.data('weekIndex');
+              if (typeof idx === 'undefined'){ return; }
+              var $tpl = $day.find('.hs-week-group-template[data-week-index="'+idx+'"]').first();
+              if (!$tpl.length){ return; }
+              var tpl = $tpl.html();
+              if (!tpl){ return; }
+              var html = tpl.replace(/__GROUP_KEY__/g, group.key).replace(/__GROUP_LABEL__/g, '').replace(/__GROUP_PRICE__/g, '');
+              var $block = $(html);
+              $day.find('.hs-week-section--mains').append($block);
+              syncWeekGroupDisplay(group.key);
+              attachAutocomplete($block);
+            });
+          }
+
+          function removeWeekGroupFromDays(key){
+            $('.hs-week-day .hs-week-menu-group[data-group-key="'+key+'"]').remove();
+          }
 
           $(document).on('click','.add-row-week', function(e){
             e.preventDefault();
@@ -501,6 +555,46 @@ CSS;
             $(this).closest('.hs-menu-group').remove();
           });
 
+          $(document).on('click','#hs-week-menu-groups-add', function(e){
+            e.preventDefault();
+            var $wrap = $('#hs-week-menu-groups');
+            if (!$wrap.length){ return; }
+            var next = parseInt($wrap.data('nextIndex'), 10);
+            if (isNaN(next)) {
+              next = $wrap.find('.hs-week-menu-group-config').length;
+            }
+            var key = 'menu_' + Date.now();
+            var index = next;
+            var labelPlaceholder = 'MENU ' + (index + 1);
+            var $row = $('<div class="hs-week-menu-group-config" data-group-key="'+key+'" data-index="'+index+'">\n'
+              + '  <input type="hidden" name="week_menu_groups['+index+'][key]" value="'+key+'">\n'
+              + '  <label>Název menu\n    <input type="text" class="regular-text js-week-group-label" name="week_menu_groups['+index+'][label]" value="" placeholder="'+labelPlaceholder+'">\n  </label>\n'
+              + '  <label>Cena / popisek\n    <input type="text" class="regular-text js-week-group-price" name="week_menu_groups['+index+'][price]" value="" placeholder="Např. 139 Kč">\n  </label>\n'
+              + '  <button type="button" class="button link-button hs-week-menu-group-remove">Odstranit</button>\n'
+              + '</div>');
+            $wrap.append($row);
+            $wrap.data('nextIndex', index + 1);
+            appendWeekGroupToDays({key:String(key)});
+          });
+
+          $(document).on('click','.hs-week-menu-group-remove', function(e){
+            e.preventDefault();
+            var $wrap = $('#hs-week-menu-groups');
+            var $rows = $wrap.find('.hs-week-menu-group-config');
+            if ($rows.length <= 1){ return; }
+            var $row = $(this).closest('.hs-week-menu-group-config');
+            var key = String($row.data('groupKey') || '');
+            $row.remove();
+            if (key){ removeWeekGroupFromDays(key); }
+          });
+
+          $(document).on('input change','.js-week-group-label, .js-week-group-price', function(){
+            var $row = $(this).closest('.hs-week-menu-group-config');
+            var key = String($row.data('groupKey') || '');
+            if (!key){ return; }
+            syncWeekGroupDisplay(key);
+          });
+
           function toggleMenuGroupFields(){
             var mode = $('input[name="pricing_mode"]:checked').val();
             $('.hs-branding__menu-groups').toggleClass('is-hidden', mode !== 'menu_groups');
@@ -519,6 +613,10 @@ CSS;
           $(function(){
             attachAutocomplete($(document));
             toggleMenuGroupFields();
+            $('#hs-week-menu-groups .hs-week-menu-group-config').each(function(){
+              var key = String($(this).data('groupKey') || '');
+              if (key){ syncWeekGroupDisplay(key); }
+            });
           });
         })(jQuery);
 JS;
@@ -934,6 +1032,74 @@ JS;
         }
 
         return array_values($groups);
+    }
+
+    private function resolve_monday_for_date(string $date): ?string {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return null;
+        }
+
+        $ts = strtotime($date);
+        if ($ts === false) {
+            return null;
+        }
+
+        $dow = (int) wp_date('N', $ts);
+        $offset = $dow > 1 ? $dow - 1 : 0;
+        $monday_ts = $offset ? strtotime('-' . $offset . ' days', $ts) : $ts;
+        if ($monday_ts === false) {
+            $monday_ts = $ts;
+        }
+
+        return wp_date('Y-m-d', $monday_ts);
+    }
+
+    private function get_week_groups_option_name(string $monday): ?string {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $monday)) {
+            return null;
+        }
+
+        return 'hsp_week_groups_' . $monday;
+    }
+
+    private function get_week_menu_groups(string $monday): array {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $monday)) {
+            return [];
+        }
+
+        if (isset($this->week_groups_cache[$monday])) {
+            return $this->week_groups_cache[$monday];
+        }
+
+        $option = get_option($this->get_week_groups_option_name($monday), []);
+        $groups = $this->sanitize_menu_groups($option);
+        $this->week_groups_cache[$monday] = $groups;
+
+        return $groups;
+    }
+
+    private function get_week_menu_groups_for_date(string $date): array {
+        $monday = $this->resolve_monday_for_date($date);
+        if ($monday === null) {
+            return [];
+        }
+
+        return $this->get_week_menu_groups($monday);
+    }
+
+    private function save_week_menu_groups(string $monday, array $groups): void {
+        $option_name = $this->get_week_groups_option_name($monday);
+        if ($option_name === null) {
+            return;
+        }
+
+        if (empty($groups)) {
+            delete_option($option_name);
+        } else {
+            update_option($option_name, $groups, false);
+        }
+
+        $this->week_groups_cache[$monday] = $groups;
     }
 
     /**
@@ -1459,9 +1625,10 @@ JS;
                           </div>
                       <?php endforeach; ?>
                     </div>
-                    <p class="hs-week-add"><button type="button" class="button add-row-week" data-week-index="<?php echo esc_attr($index); ?>" data-group-key="<?php echo esc_attr($group_key); ?>">Přidat jídlo</button></p>
-                  </div>
-              <?php endforeach; ?>
+                  <p class="hs-week-add"><button type="button" class="button add-row-week" data-week-index="<?php echo esc_attr($index); ?>" data-group-key="<?php echo esc_attr($group_key); ?>">Přidat jídlo</button></p>
+                </div>
+            <?php endforeach; ?>
+              <script type="text/template" class="hs-week-group-template" data-week-index="<?php echo esc_attr($index); ?>"><?php echo $this->build_week_group_template($index, $use_sides, $sides); ?></script>
             <?php else : ?>
               <div id="mains-<?php echo esc_attr($index); ?>" class="hs-mains" data-include-price="1" data-has-sides="<?php echo $use_sides ? '1' : '0'; ?>">
                 <?php
@@ -1519,6 +1686,43 @@ JS;
         <?php
     }
 
+    private function build_week_group_template(int $index, bool $use_sides, array $sides): string {
+        $row_placeholder = '__GROUP_KEY___0';
+        ob_start();
+        ?>
+<div class="hs-week-menu-group" data-group-key="__GROUP_KEY__">
+  <div class="hs-week-menu-group__header">
+    <span class="hs-week-menu-group__title">__GROUP_LABEL__</span>
+    <span class="hs-week-menu-group__price">__GROUP_PRICE__</span>
+  </div>
+  <div id="mains-<?php echo esc_attr($index); ?>-__GROUP_KEY__" class="hs-mains" data-include-price="0" data-has-sides="<?php echo $use_sides ? '1' : '0'; ?>" data-group-key="__GROUP_KEY__" data-next-subindex="1">
+    <div class="row main" data-group-key="__GROUP_KEY__" data-subindex="<?php echo esc_attr($row_placeholder); ?>">
+      <input class="meal-autocomplete" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_placeholder); ?>][title]" type="text" placeholder="Název jídla…" value="">
+      <input class="meal-id" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_placeholder); ?>][id]" value="">
+      <input class="meal-allergens" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_placeholder); ?>][allergens]" value="">
+      <input class="menu-group-key" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_placeholder); ?>][menu_group]" value="__GROUP_KEY__">
+      <?php if ($use_sides) : ?>
+        <div class="sides">
+          <?php foreach ($sides as $side) :
+              $term_id = is_object($side) ? $side->term_id : (isset($side['term_id']) ? $side['term_id'] : '');
+              $term_name = is_object($side) ? $side->name : (isset($side['name']) ? $side['name'] : '');
+              if (!$term_id) {
+                  continue;
+              }
+              ?>
+              <label><input type="checkbox" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_placeholder); ?>][sides][]" value="<?php echo esc_attr($term_id); ?>"> <?php echo esc_html($term_name); ?></label>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+      <button type="button" class="button link-button remove-row" data-week-index="<?php echo esc_attr($index); ?>" data-group-key="__GROUP_KEY__">Odstranit</button>
+    </div>
+  </div>
+  <p class="hs-week-add"><button type="button" class="button add-row-week" data-week-index="<?php echo esc_attr($index); ?>" data-group-key="__GROUP_KEY__">Přidat jídlo</button></p>
+</div>
+        <?php
+        return trim(ob_get_clean());
+    }
+
     private function prepare_week_context($week_start){
         $week_start = $week_start ?: date('Y-m-d');
         $timestamp = strtotime($week_start);
@@ -1542,7 +1746,9 @@ JS;
         $sides_map = $sides_data['map'];
 
         $pricing_mode = $this->get_pricing_mode();
-        $menu_groups = $this->get_menu_groups_setting();
+        $menu_groups_default = $this->get_menu_groups_setting();
+        $week_override_groups = $this->get_week_menu_groups($monday);
+        $menu_groups_active = !empty($week_override_groups) ? $week_override_groups : $menu_groups_default;
         $use_sides = $this->should_manage_sides();
 
         $days_data=[];
@@ -1567,7 +1773,9 @@ JS;
             'sides_terms' => $sides_terms,
             'sides_map'   => $sides_map,
             'pricing_mode'=> $pricing_mode,
-            'menu_groups' => $menu_groups,
+            'menu_groups' => $menu_groups_active,
+            'menu_groups_default' => $menu_groups_default,
+            'menu_groups_override' => $week_override_groups,
             'use_sides'   => $use_sides,
         ];
     }
@@ -1592,7 +1800,15 @@ JS;
         $sides = $week['sides_terms'];
         $monday = $week['monday'];
         $pricing_mode = $week['pricing_mode'] ?? 'per_item';
-        $menu_groups = is_array($week['menu_groups'] ?? null) ? $week['menu_groups'] : [];
+        $default_menu_groups = is_array($week['menu_groups_default'] ?? null) ? $week['menu_groups_default'] : [];
+        $override_menu_groups = is_array($week['menu_groups_override'] ?? null) ? $week['menu_groups_override'] : [];
+        $menu_groups = !empty($override_menu_groups) ? $override_menu_groups : $default_menu_groups;
+        $config_menu_groups = !empty($menu_groups) ? $menu_groups : [];
+        if (empty($config_menu_groups)) {
+            $config_menu_groups = [
+                ['key' => 'menu_1', 'label' => 'MENU 1', 'price' => ''],
+            ];
+        }
         $use_sides = !empty($week['use_sides']);
         $day_count = count($dates);
         ?>
@@ -1614,6 +1830,39 @@ JS;
               </div>
               <p class="description">Změnou data se načte zvolený týden (pondělí–pátek) bez uložení.</p>
             </div>
+            <?php if ($pricing_mode === 'menu_groups') : ?>
+              <fieldset class="hs-week-groups" data-week-defaults="<?php echo esc_attr(wp_json_encode($default_menu_groups)); ?>">
+                <legend>Menu a ceny pro tento týden</legend>
+                <p class="description">Zde upravíte názvy a ceny jednotlivých menu pouze pro zvolený týden. Přidané skupiny se po uložení zobrazí i v jednotlivých dnech.</p>
+                <div id="hs-week-menu-groups" class="hs-week-menu-groups" data-next-index="<?php echo esc_attr(count($config_menu_groups)); ?>">
+                  <?php foreach ($config_menu_groups as $i => $group) :
+                      $group_key = isset($group['key']) ? sanitize_key($group['key']) : '';
+                      if ($group_key === '') {
+                          $group_key = 'menu_' . ($i + 1);
+                      }
+                      $group_label = isset($group['label']) ? (string)$group['label'] : '';
+                      if ($group_label === '') {
+                          $group_label = strtoupper($group_key);
+                      }
+                      $group_price = isset($group['price']) ? (string)$group['price'] : '';
+                      ?>
+                      <div class="hs-week-menu-group-config" data-group-key="<?php echo esc_attr($group_key); ?>" data-index="<?php echo esc_attr($i); ?>">
+                        <input type="hidden" name="week_menu_groups[<?php echo esc_attr($i); ?>][key]" value="<?php echo esc_attr($group_key); ?>">
+                        <label>
+                          Název menu
+                          <input type="text" class="regular-text js-week-group-label" name="week_menu_groups[<?php echo esc_attr($i); ?>][label]" value="<?php echo esc_attr($group_label); ?>" placeholder="Např. MENU <?php echo esc_attr($i + 1); ?>">
+                        </label>
+                        <label>
+                          Cena / popisek
+                          <input type="text" class="regular-text js-week-group-price" name="week_menu_groups[<?php echo esc_attr($i); ?>][price]" value="<?php echo esc_attr($group_price); ?>" placeholder="Např. 139 Kč">
+                        </label>
+                        <button type="button" class="button link-button hs-week-menu-group-remove">Odstranit</button>
+                      </div>
+                  <?php endforeach; ?>
+                </div>
+                <p><button type="button" class="button" id="hs-week-menu-groups-add">Přidat další menu</button></p>
+              </fieldset>
+            <?php endif; ?>
             <div class="hs-week-grid">
               <?php for($i=0;$i<$day_count;$i++){ $this->render_week_day_block($i,$labels[$i] ?? '',$dates[$i] ?? '',$sides,$days_data[$i] ?? [],$use_sides,$pricing_mode,$menu_groups); } ?>
             </div>
@@ -1792,11 +2041,16 @@ JS;
         $week_start = sanitize_text_field($_POST['week_start'] ?? date('Y-m-d'));
         $ts = strtotime($week_start); $dow = (int)date('N', $ts); $monday = date('Y-m-d', strtotime('-'.($dow-1).' days', $ts));
         $week = $_POST['week'] ?? [];
+        $raw_week_groups = isset($_POST['week_menu_groups']) && is_array($_POST['week_menu_groups']) ? wp_unslash($_POST['week_menu_groups']) : [];
+        $week_groups = $this->prepare_menu_groups_submission($raw_week_groups);
 
         // Uložení 5 pracovních dní (Po–Pá)
         $use_sides = $this->should_manage_sides();
         $use_groups = $this->should_use_menu_groups();
-        $group_settings = $this->get_menu_groups_setting();
+        if (!$use_groups) {
+            $week_groups = [];
+        }
+        $group_settings = $use_groups && !empty($week_groups) ? $week_groups : $this->get_menu_groups_setting();
         $group_keys = [];
         foreach ($group_settings as $group) {
             if (!is_array($group)) {
@@ -1875,6 +2129,12 @@ JS;
             update_post_meta($post_id, 'mains', $mains);
         }
 
+        if ($use_groups) {
+            $this->save_week_menu_groups($monday, $week_groups);
+        } else {
+            $this->save_week_menu_groups($monday, []);
+        }
+
         wp_redirect(admin_url('admin.php?page=hospoda-week&saved=1'));
         exit;
     }
@@ -1948,11 +2208,12 @@ JS;
         require_once __DIR__ . '/includes/class-week-pdf-exporter.php';
 
         $exporter = new Week_Pdf_Exporter();
+        $active_groups = is_array($week['menu_groups'] ?? null) ? $week['menu_groups'] : [];
         $exportOptions = [
             'show_soup_price' => $this->should_show_soup_price(),
             'static_menu'     => $this->get_static_menu_items(),
-            'pricing_mode'    => $preferences['pricing_mode'] ?? 'per_item',
-            'menu_groups'     => $preferences['menu_groups'] ?? [],
+            'pricing_mode'    => $week['pricing_mode'] ?? ($preferences['pricing_mode'] ?? 'per_item'),
+            'menu_groups'     => $active_groups,
             'show_sides'      => $this->should_manage_sides(),
         ];
         $pdf = $exporter->build($week, $branding, $exportOptions);
@@ -1991,7 +2252,12 @@ JS;
         $soup  = get_post_meta($post->ID,'soup',true);
         $mains = get_post_meta($post->ID,'mains',true);
         $use_groups = $this->should_use_menu_groups();
-        $menu_groups = $this->get_menu_groups_setting();
+        $menu_groups = [];
+        if ($use_groups) {
+            $date_value = get_post_meta($post->ID, 'menu_date', true);
+            $week_override = is_string($date_value) ? $this->get_week_menu_groups_for_date($date_value) : [];
+            $menu_groups = !empty($week_override) ? $week_override : $this->get_menu_groups_setting();
+        }
         $sides_map = $this->should_manage_sides() ? $this->get_sides_data()['map'] : [];
         echo '<style>.hs-meta ul{margin-left:1em} .hs-meta li{margin:.25em 0}</style>';
         echo '<div class="hs-meta">';
@@ -2120,7 +2386,12 @@ JS;
         $mains = get_post_meta($post_id,'mains',true);
         $show_soup_price = $this->should_show_soup_price();
         $use_groups = $this->should_use_menu_groups();
-        $menu_groups = $this->get_menu_groups_setting();
+        $menu_groups = [];
+        if ($use_groups) {
+            $date_value = get_post_meta($post_id, 'menu_date', true);
+            $week_override = is_string($date_value) ? $this->get_week_menu_groups_for_date($date_value) : [];
+            $menu_groups = !empty($week_override) ? $week_override : $this->get_menu_groups_setting();
+        }
         $use_sides = $this->should_manage_sides();
         $sides_map = $use_sides ? $this->get_sides_data()['map'] : [];
         ob_start();
