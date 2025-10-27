@@ -14,10 +14,13 @@ class Week_Pdf_Exporter {
         $scales = [1.0, 0.95, 0.9, 0.86, 0.82, 0.78, 0.74, 0.7];
         $showSoupPrice = !empty($options['show_soup_price']);
         $staticMenu = $this->normalizeStaticMenuItems($options['static_menu'] ?? []);
+        $pricingMode = $this->normalizePricingMode($options['pricing_mode'] ?? 'per_item');
+        $menuGroups = $this->sanitizeMenuGroups($options['menu_groups'] ?? []);
+        $showSides = !empty($options['show_sides']);
 
         $lastPdf = null;
         foreach ($scales as $scale) {
-            $pdf = $this->renderDocument($week, $branding, $showSoupPrice, $staticMenu, $scale);
+            $pdf = $this->renderDocument($week, $branding, $showSoupPrice, $staticMenu, $scale, $pricingMode, $menuGroups, $showSides);
             if ($pdf->get_page_count() <= 1) {
                 return $pdf->output();
             }
@@ -31,7 +34,7 @@ class Week_Pdf_Exporter {
      * @param array{monday:string,labels:array<int,string>,dates:array<int,string>,days:array<int,array>,sides_map:array<int,string>} $week
      * @param array<int,array<string,mixed>> $staticMenu
      */
-    private function renderDocument(array $week, array $branding, bool $showSoupPrice, array $staticMenu, float $scale): Simple_Pdf {
+    private function renderDocument(array $week, array $branding, bool $showSoupPrice, array $staticMenu, float $scale, string $pricingMode, array $menuGroups, bool $showSides): Simple_Pdf {
         $pdf = new Simple_Pdf();
 
         $startTs = strtotime($week['monday']);
@@ -80,9 +83,40 @@ class Week_Pdf_Exporter {
             $this->addScaledText($pdf, $soupLine, ['indent' => 12.0, 'size' => 9.2, 'spacing_after' => 1.8], $scale);
 
             $mains = $dayData['mains'] ?? [];
-            if (!empty($mains)) {
+            if ($pricingMode === 'menu_groups' && !empty($menuGroups)) {
+                $grouped = $this->groupMainsByMenu($mains, $menuGroups);
+                foreach ($menuGroups as $group) {
+                    $groupKey = isset($group['key']) ? sanitize_key($group['key']) : '';
+                    if ($groupKey === '') {
+                        continue;
+                    }
+                    $items = $grouped[$groupKey] ?? [];
+                    if (empty($items)) {
+                        continue;
+                    }
+                    $heading = isset($group['label']) ? (string)$group['label'] : '';
+                    if ($heading === '') {
+                        $heading = strtoupper($groupKey);
+                    }
+                    $priceLabel = isset($group['price']) ? (string)$group['price'] : '';
+                    if ($priceLabel !== '') {
+                        $heading .= ' — ' . $priceLabel;
+                    }
+                    $this->addScaledText($pdf, $heading, ['indent' => 18.0, 'font' => 'F2', 'size' => 9.6, 'spacing_after' => 1.2], $scale);
+                    foreach ($items as $row) {
+                        if (!is_array($row)) {
+                            continue;
+                        }
+                        $line = $this->formatMainLine(0, $row, $week['sides_map'], false, $showSides, '• ');
+                        $this->addScaledText($pdf, $line, ['indent' => 24.0, 'size' => 8.8, 'spacing_after' => 1.0], $scale);
+                    }
+                }
+            } elseif (!empty($mains)) {
                 foreach ($mains as $position => $row) {
-                    $line = $this->formatMainLine($position + 1, $row, $week['sides_map']);
+                    if (!is_array($row)) {
+                        continue;
+                    }
+                    $line = $this->formatMainLine($position + 1, $row, $week['sides_map'], true, $showSides);
                     $this->addScaledText($pdf, $line, ['indent' => 18.0, 'size' => 9.2, 'spacing_after' => 1.3], $scale);
                 }
             } else {
@@ -95,7 +129,7 @@ class Week_Pdf_Exporter {
         if (!empty($staticMenu)) {
             $this->addScaledText($pdf, 'Stálá nabídka', ['font' => 'F2', 'size' => 10.8, 'spacing_after' => 1.8], $scale);
             foreach ($staticMenu as $item) {
-                $line = $this->formatStaticLine($item, $week['sides_map']);
+                $line = $this->formatStaticLine($item, $week['sides_map'], $showSides);
                 $this->addScaledText($pdf, $line, ['indent' => 12.0, 'size' => 8.8, 'spacing_after' => 1.2], $scale);
             }
             $this->addScaledSpacer($pdf, 5.0, $scale);
@@ -416,11 +450,107 @@ class Week_Pdf_Exporter {
         return $items;
     }
 
+    private function normalizePricingMode($value): string {
+        if (!is_string($value)) {
+            return 'per_item';
+        }
+        return in_array($value, ['per_item', 'menu_groups'], true) ? $value : 'per_item';
+    }
+
+    /**
+     * @param mixed $value
+     * @return array<int,array{key:string,label:string,price:string}>
+     */
+    private function sanitizeMenuGroups($value): array {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $groups = [];
+        $used = [];
+        $index = 1;
+        foreach ($value as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $label = isset($row['label']) ? sanitize_text_field($row['label']) : '';
+            if ($label === '') {
+                continue;
+            }
+            $price = isset($row['price']) ? sanitize_text_field($row['price']) : '';
+            $key = isset($row['key']) ? sanitize_key($row['key']) : '';
+            if ($key === '') {
+                $key = sanitize_key(remove_accents($label));
+            }
+            if ($key === '') {
+                $key = 'menu_' . $index;
+            }
+            $base = $key;
+            $suffix = 2;
+            while (in_array($key, $used, true)) {
+                $key = $base . '_' . $suffix;
+                $suffix++;
+            }
+            $used[] = $key;
+            $groups[] = [
+                'key' => $key,
+                'label' => $label,
+                'price' => $price,
+            ];
+            $index++;
+            if (count($groups) >= 12) {
+                break;
+            }
+        }
+
+        return array_values($groups);
+    }
+
+    /**
+     * @param array<int,mixed> $mains
+     * @param array<int,array{key:string,label:string,price:string}> $groups
+     * @return array<string,array<int,array<string,mixed>>>
+     */
+    private function groupMainsByMenu(array $mains, array $groups): array {
+        $keys = [];
+        foreach ($groups as $group) {
+            $key = isset($group['key']) ? sanitize_key($group['key']) : '';
+            if ($key !== '') {
+                $keys[] = $key;
+            }
+        }
+        $keys = array_values(array_unique($keys));
+        if (empty($keys)) {
+            return ['' => array_values(array_filter($mains, 'is_array'))];
+        }
+
+        $default = $keys[0];
+        $buckets = [];
+        foreach ($keys as $key) {
+            $buckets[$key] = [];
+        }
+
+        foreach ($mains as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $groupKey = isset($row['menu_group']) ? sanitize_key((string)$row['menu_group']) : '';
+            if ($groupKey === '' || !in_array($groupKey, $keys, true)) {
+                $groupKey = $default;
+            }
+            $row['menu_group'] = $groupKey;
+            $buckets[$groupKey][] = $row;
+        }
+
+        return $buckets;
+    }
+
     /**
      * @param array<string,mixed> $row
      * @param array<int,string> $sidesMap
+     * @param bool $includeSides
      */
-    private function formatStaticLine(array $row, array $sidesMap): string {
+    private function formatStaticLine(array $row, array $sidesMap, bool $includeSides): string {
         $title = trim((string)($row['title'] ?? ''));
         if ($title === '') {
             $title = 'Bez názvu';
@@ -428,7 +558,7 @@ class Week_Pdf_Exporter {
         $line = '• ' . $title;
 
         $sides = [];
-        if (!empty($row['sides']) && is_array($row['sides'])) {
+        if ($includeSides && !empty($row['sides']) && is_array($row['sides'])) {
             foreach ($row['sides'] as $termId) {
                 $termId = (int)$termId;
                 if ($termId && isset($sidesMap[$termId])) {

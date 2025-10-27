@@ -62,6 +62,12 @@ class Hospoda_Plugin {
         '.hsp-root .hsp-title{grid-area:title;font-weight:600}' .
         '.hsp-root .hsp-sides{grid-area:sides;display:block;color:#7a7a7a;font-size:.9em;margin:2px 0 0}' .
         '.hsp-root .hsp-price{grid-area:price;justify-self:end;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;color:#111}' .
+        '.hsp-root .hsp-menu-groups{display:grid;gap:18px;margin:24px 0 0}' .
+        '.hsp-root .hsp-menu-group{border:1px solid #f3d4b2;border-radius:12px;padding:16px 18px;background:#fff8ed;box-shadow:0 1px 2px rgba(0,0,0,.04)}' .
+        '.hsp-root .hsp-menu-group__title{display:flex;justify-content:space-between;align-items:baseline;font-size:1.05em;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#b45309;margin:0 0 6px}' .
+        '.hsp-root .hsp-menu-group__price{margin-left:12px;font-weight:700;color:#ef6c00;font-size:.95em}' .
+        '.hsp-root .hsp-menu-group__list{list-style:none;margin:0;padding:0;display:grid;gap:6px}' .
+        '.hsp-root .hsp-menu-group__item{display:flex;flex-direction:column;gap:2px}' .
         /* soup as full grid row */
         '.hsp-root .hsp-soup{margin:0}' .
         /* meals list */
@@ -124,7 +130,7 @@ class Hospoda_Plugin {
             }
         }
         if (!$found) {
-            $fallback = '.hsp-week{display:grid;gap:2rem}.hsp-mains{list-style:none;margin:0;padding:0;display:grid;gap:1rem}.hsp-item{display:grid;gap:1rem;grid-template-columns:1fr auto;align-items:start}.hsp-price{white-space:nowrap;font-variant-numeric:tabular-nums}.hsp-sides{color:#7a7a7a}.hsp-static{margin:24px 0 0;padding:18px 20px;border:1px solid #f3d4b2;border-radius:12px;background:#fff7ed}.hsp-static__title{margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:#b45309}.hsp-static__list{list-style:none;margin:0;padding:0;display:grid;gap:8px}.hsp-static__list li{margin:0}';
+            $fallback = '.hsp-week{display:grid;gap:2rem}.hsp-mains{list-style:none;margin:0;padding:0;display:grid;gap:1rem}.hsp-item{display:grid;gap:1rem;grid-template-columns:1fr auto;align-items:start}.hsp-price{white-space:nowrap;font-variant-numeric:tabular-nums}.hsp-sides{color:#7a7a7a}.hsp-menu-groups{display:grid;gap:18px;margin:24px 0 0}.hsp-menu-group{border:1px solid #f3d4b2;border-radius:12px;padding:16px 18px;background:#fff8ed}.hsp-menu-group__title{display:flex;justify-content:space-between;align-items:baseline;font-size:1.05em;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#b45309;margin:0 0 6px}.hsp-menu-group__price{margin-left:12px;font-weight:700;color:#ef6c00;font-size:.95em}.hsp-menu-group__list{list-style:none;margin:0;padding:0;display:grid;gap:6px}.hsp-menu-group__item{display:flex;flex-direction:column;gap:2px}.hsp-static{margin:24px 0 0;padding:18px 20px;border:1px solid #f3d4b2;border-radius:12px;background:#fff7ed}.hsp-static__title{margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:#b45309}.hsp-static__list{list-style:none;margin:0;padding:0;display:grid;gap:8px}.hsp-static__list li{margin:0}';
             \wp_register_style('hospoda-frontend', false, [], VERSION);
             \wp_enqueue_style('hospoda-frontend');
             \wp_add_inline_style('hospoda-frontend', $fallback);
@@ -193,6 +199,7 @@ class Hospoda_Plugin {
      * Register the weekly menu as the only admin page for this plugin.
      */
     public function admin_menu_page() {
+        $use_sides = $this->should_manage_sides();
         add_menu_page(
             'Týdenní menu',            // page title
             'Hospoda',                 // menu title
@@ -211,13 +218,15 @@ class Hospoda_Plugin {
             'edit.php?post_type=' . CPT_MEAL
         );
 
-        add_submenu_page(
-            'hospoda-week',
-            'Přílohy',
-            'Přílohy',
-            'manage_categories',
-            'edit-tags.php?taxonomy=' . TAX_SIDE . '&post_type=' . CPT_MEAL
-        );
+        if ($use_sides) {
+            add_submenu_page(
+                'hospoda-week',
+                'Přílohy',
+                'Přílohy',
+                'manage_categories',
+                'edit-tags.php?taxonomy=' . TAX_SIDE . '&post_type=' . CPT_MEAL
+            );
+        }
 
         add_submenu_page(
             'hospoda-week',
@@ -272,6 +281,12 @@ class Hospoda_Plugin {
 .hs-week-section{margin-bottom:20px}
 .hs-week-section:last-of-type{margin-bottom:0}
 .hs-week-section-title{margin:0 0 10px;font-size:14px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#6b7280}
+.hs-week-menu-group{margin-bottom:18px;padding:16px;border:1px solid #d9e4ff;border-radius:10px;background:#f7faff;box-shadow:inset 0 1px 0 rgba(15,23,42,.04)}
+.hs-week-menu-group:last-of-type{margin-bottom:0}
+.hs-week-menu-group__header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.hs-week-menu-group__title{font-size:16px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#0f172a}
+.hs-week-menu-group__price{font-weight:700;color:#ef6c00;font-size:14px}
+.hs-week-menu-group .hs-week-add{margin-top:10px}
 .hs-week-day .row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:14px}
 .hs-week-day .row:last-child{margin-bottom:0}
 .hs-week-day .row input.meal-autocomplete{flex:1 1 240px;min-width:220px}
@@ -365,26 +380,56 @@ CSS;
             if (typeof idx === 'undefined'){
               idx = $(this).closest('fieldset').data('week-index');
             }
-            var $wrap = $(this).closest('fieldset').find('.hs-mains');
-            if (!$wrap.length){
-              $wrap = $(this).closest('.hs-week-day').find('.hs-mains');
+            var groupKey = $(this).data('groupKey') || '';
+            var $wrap;
+            if (groupKey){
+              var $group = $(this).closest('.hs-week-menu-group');
+              $wrap = $group.find('.hs-mains').first();
+              if (!$wrap.length){
+                $wrap = $(this).closest('.hs-week-day').find('.hs-mains[data-group-key="'+groupKey+'"]').first();
+              }
+            } else {
+              $wrap = $(this).closest('fieldset').find('.hs-mains').first();
             }
-            if (!$wrap.length){ return; }
+            if (!$wrap || !$wrap.length){ return; }
+            var includePrice = String($wrap.data('includePrice')) !== '0';
+            var hasSides = String($wrap.data('hasSides')) === '1';
+            var nextSub = parseInt($wrap.data('nextSubindex'), 10);
+            if (isNaN(nextSub)) {
+              nextSub = $wrap.find('.row.main').length;
+            }
+            var rowKey;
+            if (groupKey){
+              rowKey = groupKey + '_' + nextSub;
+              $wrap.data('nextSubindex', nextSub + 1);
+            } else {
+              rowKey = $wrap.find('.row.main').length;
+            }
             var $rows = $wrap.find('.row.main');
-            var count = $rows.length;
-            var sidesHtml = $rows.length ? ($rows.first().find('.sides').html() || '') : '';
+            var sidesHtml = '';
+            if ($rows.length && $rows.first().find('.sides').length){
+              sidesHtml = $rows.first().find('.sides').html() || '';
+            }
+            var priceField = includePrice ? '  <input class="price" type="text" name="week[mains]['+idx+']['+rowKey+'][price]" placeholder="Cena (Kč)" value="">\n' : '';
+            var groupInput = groupKey ? '  <input class="menu-group-key" type="hidden" name="week[mains]['+idx+']['+rowKey+'][menu_group]" value="'+groupKey+'">\n' : '';
+            var sidesSection = '';
+            if (hasSides && sidesHtml){
+              sidesSection = '  <div class="sides">'+sidesHtml+'</div>\n';
+            }
+            var attrs = groupKey ? ' data-group-key="'+groupKey+'" data-subindex="'+rowKey+'"' : ' data-index="'+rowKey+'"';
             var tmpl = ''+
-              '<div class="row main">\n'+
-              '  <input class="meal-autocomplete" name="week[mains]['+idx+']['+count+'][title]" type="text" placeholder="Název jídla…" value="">\n'+
-              '  <input class="meal-id" type="hidden" name="week[mains]['+idx+']['+count+'][id]" value="">\n'+
-              '  <input class="meal-allergens" type="hidden" name="week[mains]['+idx+']['+count+'][allergens]" value="">\n'+
-              '  <input class="price" type="text" name="week[mains]['+idx+']['+count+'][price]" placeholder="Cena (Kč)" value="">\n'+
-              '  <div class="sides">'+sidesHtml+'</div>\n'+
-              '  <button type="button" class="button link-button remove-row" data-week-index="'+idx+'">Odstranit</button>\n'+
+              '<div class="row main"'+attrs+'>\n'+
+              '  <input class="meal-autocomplete" name="week[mains]['+idx+']['+rowKey+'][title]" type="text" placeholder="Název jídla…" value="">\n'+
+              '  <input class="meal-id" type="hidden" name="week[mains]['+idx+']['+rowKey+'][id]" value="">\n'+
+              '  <input class="meal-allergens" type="hidden" name="week[mains]['+idx+']['+rowKey+'][allergens]" value="">\n'+
+              groupInput+
+              priceField+
+              sidesSection+
+              '  <button type="button" class="button link-button remove-row" data-week-index="'+idx+'"'+(groupKey?' data-group-key="'+groupKey+'"':'')+'>Odstranit</button>\n'+
               '</div>';
             var $row = $(tmpl);
             $row.find('.sides input[type=checkbox]').each(function(){
-              $(this).prop('checked', false).attr('name','week[mains]['+idx+']['+count+'][sides][]');
+              $(this).prop('checked', false).attr('name','week[mains]['+idx+']['+rowKey+'][sides][]');
             });
             $wrap.append($row);
             attachAutocomplete($row);
@@ -396,14 +441,19 @@ CSS;
             if (!$wrap.length){ return; }
             var idx = $wrap.find('.row.main').length;
             var $rows = $wrap.find('.row.main');
-            var sidesHtml = $rows.length ? ($rows.first().find('.sides').html() || '') : '';
+            var hasSides = String($wrap.data('hasSides')) === '1';
+            var sidesHtml = '';
+            if (hasSides && $rows.length && $rows.first().find('.sides').length){
+              sidesHtml = $rows.first().find('.sides').html() || '';
+            }
+            var sidesSection = hasSides && sidesHtml ? '  <div class="sides">'+sidesHtml+'</div>\n' : '';
             var tmpl = ''+
               '<div class="row main" data-static-index="'+idx+'">\n'+
               '  <input class="meal-autocomplete" name="static_menu['+idx+'][title]" type="text" placeholder="Název jídla…" value="">\n'+
               '  <input class="meal-id" type="hidden" name="static_menu['+idx+'][id]" value="">\n'+
               '  <input class="meal-allergens" type="hidden" name="static_menu['+idx+'][allergens]" value="">\n'+
               '  <input class="price" type="text" name="static_menu['+idx+'][price]" placeholder="Cena (Kč)" value="">\n'+
-              '  <div class="sides">'+sidesHtml+'</div>\n'+
+              sidesSection+
               '  <button type="button" class="button link-button remove-row" data-static-index="'+idx+'">Odstranit</button>\n'+
               '</div>';
             var $row = $(tmpl);
@@ -422,6 +472,42 @@ CSS;
             }
           });
 
+          $(document).on('click','#hs-menu-groups-add', function(e){
+            e.preventDefault();
+            var $wrap = $('#hs-menu-groups');
+            if (!$wrap.length){ return; }
+            var next = parseInt($wrap.data('nextIndex'), 10);
+            if (isNaN(next)) {
+              next = $wrap.find('.hs-menu-group').length;
+            }
+            var key = 'menu_' + Date.now();
+            var tmpl = ''+
+              '<div class="hs-menu-group" data-index="'+next+'">\n'+
+              '  <input type="hidden" name="menu_groups['+next+'][key]" value="'+key+'">\n'+
+              '  <label>Název menu\n    <input type="text" name="menu_groups['+next+'][label]" value="">\n  </label>\n'+
+              '  <label>Cena / popisek\n    <input type="text" name="menu_groups['+next+'][price]" value="">\n  </label>\n'+
+              '  <button type="button" class="button link-button hs-menu-group-remove">Odstranit</button>\n'+
+              '</div>';
+            var $row = $(tmpl);
+            $wrap.append($row);
+            $wrap.data('nextIndex', next + 1);
+          });
+
+          $(document).on('click','.hs-menu-group-remove', function(e){
+            e.preventDefault();
+            var $wrap = $('#hs-menu-groups');
+            var $rows = $wrap.find('.hs-menu-group');
+            if ($rows.length <= 1){ return; }
+            $(this).closest('.hs-menu-group').remove();
+          });
+
+          function toggleMenuGroupFields(){
+            var mode = $('input[name="pricing_mode"]:checked').val();
+            $('.hs-branding__menu-groups').toggleClass('is-hidden', mode !== 'menu_groups');
+          }
+
+          $(document).on('change','input[name="pricing_mode"]', toggleMenuGroupFields);
+
           $(document).on('change','#hs-week-start', function(){
             var d = $(this).val();
             if(!d) return;
@@ -430,14 +516,17 @@ CSS;
             window.location.href = url.toString();
           });
 
-          $(function(){ attachAutocomplete($(document)); });
+          $(function(){
+            attachAutocomplete($(document));
+            toggleMenuGroupFields();
+          });
         })(jQuery);
 JS;
             wp_add_inline_script('jquery-ui-autocomplete', $js);
         }
 
         if ($is_branding_page) {
-            $css3 = '.hs-branding{margin:20px 0;padding:20px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;max-width:960px}.hs-branding h2{margin-top:0}.hs-branding__logo{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.hs-branding__preview{width:160px;min-height:120px;border:1px dashed #ccd0d4;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden}.hs-branding__preview img{max-width:100%;height:auto;display:block}.hs-branding__preview span{color:#777;font-style:italic}.hs-branding textarea{max-width:100%}.hs-branding .description{margin-top:4px;color:#555}.hs-branding__controls{display:flex;flex-direction:column;gap:8px}.hs-branding__static{margin-top:24px;padding-top:16px;border-top:1px solid #d8d8d8}.hs-branding__static h2{margin:0 0 6px;font-size:18px}.hs-static-menu{display:flex;flex-direction:column;gap:14px;margin-top:12px}.hs-static-menu .row{display:flex;flex-wrap:wrap;gap:12px;padding:14px;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa}.hs-static-menu .row input.meal-autocomplete{flex:1 1 260px;min-width:220px}.hs-static-menu .row input.price{width:110px}.hs-static-menu .sides{display:flex;flex-wrap:wrap;gap:8px}.hs-static-menu .sides label{margin:0;padding:4px 10px;border:1px solid #d5d7db;border-radius:4px;background:#fff;font-size:13px}.hs-static-menu .remove-row{margin-left:auto}.hs-static-actions{margin-top:12px}';
+            $css3 = '.hs-branding{margin:20px 0;padding:20px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;max-width:960px}.hs-branding h2{margin-top:0}.hs-branding__logo{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.hs-branding__preview{width:160px;min-height:120px;border:1px dashed #ccd0d4;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden}.hs-branding__preview img{max-width:100%;height:auto;display:block}.hs-branding__preview span{color:#777;font-style:italic}.hs-branding textarea{max-width:100%}.hs-branding .description{margin-top:4px;color:#555}.hs-branding__controls{display:flex;flex-direction:column;gap:8px}.hs-branding__static{margin-top:24px;padding-top:16px;border-top:1px solid #d8d8d8}.hs-branding__static h2{margin:0 0 6px;font-size:18px}.hs-branding__menu-groups{margin-top:20px;padding:16px;border:1px solid #d9dde8;border-radius:8px;background:#f8fafc}.hs-branding__menu-groups.is-hidden{display:none}.hs-menu-groups{display:flex;flex-direction:column;gap:12px;margin-top:12px}.hs-menu-group{display:flex;flex-wrap:wrap;gap:12px;padding:12px;border:1px solid #e5e7eb;border-radius:6px;background:#fff}.hs-menu-group label{display:flex;flex-direction:column;flex:1 1 220px;font-weight:600;font-size:13px;color:#334155}.hs-menu-group label input[type=text]{margin-top:4px}.hs-menu-group-remove{margin-left:auto}.hs-menu-groups__actions{margin-top:10px}.hs-static-menu{display:flex;flex-direction:column;gap:14px;margin-top:12px}.hs-static-menu .row{display:flex;flex-wrap:wrap;gap:12px;padding:14px;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa}.hs-static-menu .row input.meal-autocomplete{flex:1 1 260px;min-width:220px}.hs-static-menu .row input.price{width:110px}.hs-static-menu .sides{display:flex;flex-wrap:wrap;gap:8px}.hs-static-menu .sides label{margin:0;padding:4px 10px;border:1px solid #d5d7db;border-radius:4px;background:#fff;font-size:13px}.hs-static-menu .remove-row{margin-left:auto}.hs-static-actions{margin-top:12px}';
             wp_add_inline_style('hospoda-admin', $css3);
         }
     }
@@ -448,6 +537,12 @@ JS;
     private function get_sides_data(): array {
         if (is_array($this->sides_cache)) {
             return $this->sides_cache;
+        }
+
+        if (!$this->should_manage_sides()) {
+            $data = ['terms' => [], 'map' => []];
+            $this->sides_cache = $data;
+            return $data;
         }
 
         $terms = get_terms(['taxonomy' => TAX_SIDE, 'hide_empty' => false]);
@@ -538,9 +633,17 @@ JS;
             $stored = [];
         }
 
-        $defaults = ['soup_price_mode' => 'included'];
+        $defaults = [
+            'soup_price_mode' => 'included',
+            'sides_mode'      => 'taxonomy',
+            'pricing_mode'    => 'per_item',
+            'menu_groups'     => [],
+        ];
         $prefs = wp_parse_args($stored, $defaults);
         $prefs['soup_price_mode'] = $this->normalize_soup_price_mode($prefs['soup_price_mode'] ?? '');
+        $prefs['sides_mode'] = $this->normalize_sides_mode((string)($prefs['sides_mode'] ?? ''));
+        $prefs['pricing_mode'] = $this->normalize_pricing_mode((string)($prefs['pricing_mode'] ?? ''));
+        $prefs['menu_groups'] = $this->sanitize_menu_groups($prefs['menu_groups'] ?? []);
 
         $this->menu_preferences_cache = $prefs;
 
@@ -549,6 +652,14 @@ JS;
 
     private function normalize_soup_price_mode(string $value): string {
         return in_array($value, ['included', 'separate'], true) ? $value : 'included';
+    }
+
+    private function normalize_sides_mode(string $value): string {
+        return in_array($value, ['taxonomy', 'disabled'], true) ? $value : 'taxonomy';
+    }
+
+    private function normalize_pricing_mode(string $value): string {
+        return in_array($value, ['per_item', 'menu_groups'], true) ? $value : 'per_item';
     }
 
     private function should_show_soup_price(): bool {
@@ -666,9 +777,35 @@ JS;
         return array_values($items);
     }
 
+    /**
+     * @param mixed $rows
+     * @return array<int,array{key:string,label:string,price:string}>
+     */
+    private function prepare_menu_groups_submission($rows): array {
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $prepared = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $prepared[] = [
+                'key'   => isset($row['key']) ? sanitize_key(wp_unslash($row['key'])) : '',
+                'label' => isset($row['label']) ? sanitize_text_field(wp_unslash($row['label'])) : '',
+                'price' => isset($row['price']) ? sanitize_text_field(wp_unslash($row['price'])) : '',
+            ];
+        }
+
+        return $this->sanitize_menu_groups($prepared);
+    }
+
     private function apply_meal_defaults_to_item(array $item): array {
         $id = isset($item['id']) ? (int)$item['id'] : 0;
         $title = isset($item['title']) ? (string)$item['title'] : '';
+        $use_sides = $this->should_manage_sides();
 
         if ($id > 0) {
             $resolvedTitle = $this->meal_title_by_id($id, $title);
@@ -676,7 +813,7 @@ JS;
                 $item['title'] = $resolvedTitle;
             }
 
-            if (empty($item['sides'])) {
+            if ($use_sides && empty($item['sides'])) {
                 $item['sides'] = $this->get_meal_term_ids($id, TAX_SIDE);
             }
 
@@ -747,6 +884,60 @@ JS;
 
     /**
      * @param mixed $value
+     * @return array<int,array{key:string,label:string,price:string}>
+     */
+    private function sanitize_menu_groups($value): array {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $groups = [];
+        $used = [];
+        $index = 1;
+        foreach ($value as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $label = isset($row['label']) ? sanitize_text_field($row['label']) : '';
+            if ($label === '') {
+                continue;
+            }
+
+            $price = isset($row['price']) ? sanitize_text_field($row['price']) : '';
+            $key = isset($row['key']) ? sanitize_key($row['key']) : '';
+            if ($key === '') {
+                $key = sanitize_key(remove_accents($label));
+            }
+            if ($key === '') {
+                $key = 'menu_' . $index;
+            }
+
+            $base = $key;
+            $suffix = 2;
+            while (in_array($key, $used, true)) {
+                $key = $base . '_' . $suffix;
+                $suffix++;
+            }
+            $used[] = $key;
+
+            $groups[] = [
+                'key'   => $key,
+                'label' => $label,
+                'price' => $price,
+            ];
+
+            $index++;
+            if (count($groups) >= 12) {
+                break;
+            }
+        }
+
+        return array_values($groups);
+    }
+
+    /**
+     * @param mixed $value
      * @return array<int,int>
      */
     private function sanitize_allergen_list($value): array {
@@ -769,6 +960,68 @@ JS;
         sort($clean, SORT_NUMERIC);
 
         return $clean;
+    }
+
+    private function should_manage_sides(): bool {
+        $prefs = $this->get_menu_preferences();
+        return ($prefs['sides_mode'] ?? 'taxonomy') === 'taxonomy';
+    }
+
+    private function get_pricing_mode(): string {
+        $prefs = $this->get_menu_preferences();
+        return $prefs['pricing_mode'] ?? 'per_item';
+    }
+
+    private function should_use_menu_groups(): bool {
+        return $this->get_pricing_mode() === 'menu_groups' && !empty($this->get_menu_groups_setting());
+    }
+
+    /**
+     * @return array<int,array{key:string,label:string,price:string}>
+     */
+    private function get_menu_groups_setting(): array {
+        $prefs = $this->get_menu_preferences();
+        $groups = $prefs['menu_groups'] ?? [];
+        return is_array($groups) ? $groups : [];
+    }
+
+    /**
+     * @param array<int,mixed> $mains
+     * @param array<int,array{key:string,label:string,price:string}> $groups
+     * @return array<string,array<int,array<string,mixed>>>
+     */
+    private function group_mains_by_menu(array $mains, array $groups): array {
+        $keys = [];
+        foreach ($groups as $group) {
+            $key = isset($group['key']) ? (string)$group['key'] : '';
+            if ($key !== '') {
+                $keys[] = $key;
+            }
+        }
+        $keys = array_values(array_unique($keys));
+        if (empty($keys)) {
+            return ['' => array_values(array_filter($mains, 'is_array'))];
+        }
+
+        $default = $keys[0];
+        $buckets = [];
+        foreach ($keys as $key) {
+            $buckets[$key] = [];
+        }
+
+        foreach ($mains as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $groupKey = isset($row['menu_group']) ? sanitize_key((string)$row['menu_group']) : '';
+            if ($groupKey === '' || !in_array($groupKey, $keys, true)) {
+                $groupKey = $default;
+            }
+            $row['menu_group'] = $groupKey;
+            $buckets[$groupKey][] = $row;
+        }
+
+        return $buckets;
     }
 
     /**
@@ -899,6 +1152,9 @@ JS;
             if (isset($seen[$key])) continue;
             $seen[$key] = true;
             $extra = $this->last_usage_data(get_the_ID(), $title);
+            if (!$this->should_manage_sides()) {
+                $extra['sides'] = [];
+            }
             $out[]=[
                 'label'=>$title,
                 'value'=>$title,
@@ -929,6 +1185,9 @@ JS;
                             $key = mb_strtolower($t);
                             if (!isset($seen[$key])){
                                 $extra = $this->last_usage_data(0,$t);
+                                if (!$this->should_manage_sides()) {
+                                    $extra['sides'] = [];
+                                }
                                 $out[] = [
                                     'label'=>$t,
                                     'value'=>$t,
@@ -950,6 +1209,9 @@ JS;
                         $key = mb_strtolower($t);
                         if (!isset($seen[$key])){
                             $extra = $this->last_usage_data(0,$t);
+                            if (!$this->should_manage_sides()) {
+                                $extra['sides'] = [];
+                            }
                             $out[] = [
                                 'label'=>$t,
                                 'value'=>$t,
@@ -1046,15 +1308,42 @@ JS;
         ];
         update_post_meta($post_id,'soup',$soup);
         $mains=[];
+        $use_groups = $this->should_use_menu_groups();
+        $group_settings = $this->get_menu_groups_setting();
+        $group_keys = [];
+        foreach ($group_settings as $group) {
+            if (!is_array($group)) {
+                continue;
+            }
+            $key = isset($group['key']) ? (string)$group['key'] : '';
+            if ($key !== '') {
+                $group_keys[] = sanitize_key($key);
+            }
+        }
+        $group_keys = array_values(array_filter($group_keys, static function ($key) {
+            return $key !== '';
+        }));
+        $default_group_key = $group_keys[0] ?? '';
+
         foreach($_POST['mains']??[] as $row){
             $id=intval($row['id']??0);
             if (!$id && !empty($row['title'])){ $id = $this->ensure_meal_exists($row['title']); }
+            $group_key = '';
+            if ($use_groups) {
+                $candidate = isset($row['menu_group']) ? sanitize_key($row['menu_group']) : '';
+                if ($candidate !== '' && in_array($candidate, $group_keys, true)) {
+                    $group_key = $candidate;
+                } else {
+                    $group_key = $default_group_key;
+                }
+            }
             $mains[]=[
                 'id'=>$id,
                 'title'=>$this->meal_title_by_id($id,sanitize_text_field($row['title']??'')),
                 'price'=>sanitize_text_field($row['price']??''),
                 'sides'=>array_values(array_unique(array_map('intval',$row['sides']??[]))),
                 'allergens'=>$this->sanitize_allergen_list($row['allergens'] ?? []),
+                'menu_group'=>$group_key,
             ];
         }
         update_post_meta($post_id,'mains',$mains);
@@ -1067,7 +1356,11 @@ JS;
     }
 
     // ---------- Týdenní admin stránka ----------
-    private function render_week_day_block($index,$label,$date,$sides,$data){
+    private function render_week_day_block($index,$label,$date,$sides,$data,$use_sides,$pricing_mode,$menu_groups){
+        $soup = is_array($data['soup'] ?? null) ? $data['soup'] : [];
+        $mains_raw = is_array($data['mains'] ?? null) ? $data['mains'] : [];
+        $use_groups = ($pricing_mode === 'menu_groups' && !empty($menu_groups));
+        $group_rows = $use_groups ? $this->group_mains_by_menu($mains_raw, $menu_groups) : [];
         ?>
         <fieldset class="hs-week-day" data-week-index="<?php echo esc_attr($index); ?>">
           <legend>
@@ -1078,55 +1371,149 @@ JS;
           <div class="hs-week-section hs-week-section--soup">
             <h3 class="hs-week-section-title">Polévka</h3>
             <div class="row soup">
-              <input class="meal-autocomplete" name="week[soup][<?php echo esc_attr($index); ?>][title]" type="text" placeholder="Polévka – začněte psát…" value="<?php echo esc_attr($data['soup']['title'] ?? ''); ?>">
-              <input class="meal-id" type="hidden" name="week[soup][<?php echo esc_attr($index); ?>][id]" value="<?php echo esc_attr($data['soup']['id'] ?? ''); ?>">
-              <input class="meal-allergens" type="hidden" name="week[soup][<?php echo esc_attr($index); ?>][allergens]" value="<?php echo esc_attr($this->format_allergens_field($data['soup']['allergens'] ?? [])); ?>">
-              <input class="price" type="text" name="week[soup][<?php echo esc_attr($index); ?>][price]" placeholder="Cena (Kč)" value="<?php echo esc_attr($data['soup']['price'] ?? ''); ?>">
+              <input class="meal-autocomplete" name="week[soup][<?php echo esc_attr($index); ?>][title]" type="text" placeholder="Polévka – začněte psát…" value="<?php echo esc_attr($soup['title'] ?? ''); ?>">
+              <input class="meal-id" type="hidden" name="week[soup][<?php echo esc_attr($index); ?>][id]" value="<?php echo esc_attr($soup['id'] ?? ''); ?>">
+              <input class="meal-allergens" type="hidden" name="week[soup][<?php echo esc_attr($index); ?>][allergens]" value="<?php echo esc_attr($this->format_allergens_field($soup['allergens'] ?? [])); ?>">
+              <input class="price" type="text" name="week[soup][<?php echo esc_attr($index); ?>][price]" placeholder="Cena (Kč)" value="<?php echo esc_attr($soup['price'] ?? ''); ?>">
             </div>
           </div>
 
           <div class="hs-week-section hs-week-section--mains">
             <h3 class="hs-week-section-title">Hlavní jídla</h3>
-            <div id="mains-<?php echo esc_attr($index); ?>" class="hs-mains">
-              <?php
-              if (!empty($data['mains'])) {
-                  foreach ($data['mains'] as $i=>$row) {
-                      $row_sides = $row['sides'] ?? [];
-                      ?>
-                      <div class="row main">
-                        <input class="meal-autocomplete" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][title]" type="text" placeholder="Název jídla…" value="<?php echo esc_attr($row['title'] ?? ''); ?>">
-                        <input class="meal-id" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][id]" value="<?php echo esc_attr($row['id'] ?? ''); ?>">
-                        <input class="meal-allergens" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][allergens]" value="<?php echo esc_attr($this->format_allergens_field($row['allergens'] ?? [])); ?>">
-                        <input class="price" type="text" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][price]" placeholder="Cena (Kč)" value="<?php echo esc_attr($row['price'] ?? ''); ?>">
-                        <div class="sides">
-                          <?php foreach ($sides as $side): $term_id = is_object($side)?$side->term_id:(isset($side['term_id'])?$side['term_id']:''); $term_name = is_object($side)?$side->name:(isset($side['name'])?$side['name']:''); ?>
-                            <label><input type="checkbox" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][sides][]" value="<?php echo esc_attr($term_id); ?>" <?php checked(in_array($term_id, $row_sides)); ?>> <?php echo esc_html($term_name); ?></label>
-                          <?php endforeach; ?>
-                        </div>
-                        <button type="button" class="button link-button remove-row" data-week-index="<?php echo esc_attr($index); ?>">Odstranit</button>
-                      </div>
-                      <?php
+            <?php if ($use_groups) : ?>
+              <?php foreach ($menu_groups as $group) :
+                  $group_key = isset($group['key']) ? (string)$group['key'] : '';
+                  if ($group_key === '') {
+                      continue;
                   }
-              } else {
-                  // prázdná výchozí řádka s korektními názvy polí
+                  $label_text = isset($group['label']) ? (string)$group['label'] : '';
+                  if ($label_text === '') {
+                      $label_text = strtoupper($group_key);
+                  }
+                  $price_text = isset($group['price']) ? (string)$group['price'] : '';
+
+                  $rows_for_group = $group_rows[$group_key] ?? [];
+                  $output_rows = [];
+                  $sub_index = 0;
+                  foreach ($rows_for_group as $row) {
+                      if (!is_array($row)) {
+                          continue;
+                      }
+                      $row['menu_group'] = $group_key;
+                      $row_key = $group_key . '_' . $sub_index;
+                      $output_rows[] = ['key' => $row_key, 'row' => $row];
+                      $sub_index++;
+                  }
+                  if (empty($output_rows)) {
+                      $row_key = $group_key . '_0';
+                      $output_rows[] = [
+                          'key' => $row_key,
+                          'row' => [
+                              'id' => '',
+                              'title' => '',
+                              'price' => '',
+                              'sides' => [],
+                              'allergens' => [],
+                              'menu_group' => $group_key,
+                          ],
+                      ];
+                      $sub_index = 1;
+                  }
+                  $next_subindex = $sub_index;
                   ?>
-                  <div class="row main">
-                    <input class="meal-autocomplete" name="week[mains][<?php echo esc_attr($index); ?>][0][title]" type="text" placeholder="Název jídla…" value="">
-                    <input class="meal-id" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][0][id]" value="">
-                    <input class="meal-allergens" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][0][allergens]" value="">
-                    <input class="price" type="text" name="week[mains][<?php echo esc_attr($index); ?>][0][price]" placeholder="Cena (Kč)" value="">
-                    <div class="sides">
-                      <?php foreach ($sides as $side): $term_id = is_object($side)?$side->term_id:(isset($side['term_id'])?$side['term_id']:''); $term_name = is_object($side)?$side->name:(isset($side['name'])?$side['name']:''); ?>
-                        <label><input type="checkbox" name="week[mains][<?php echo esc_attr($index); ?>][0][sides][]" value="<?php echo esc_attr($term_id); ?>"> <?php echo esc_html($term_name); ?></label>
+                  <div class="hs-week-menu-group" data-group-key="<?php echo esc_attr($group_key); ?>">
+                    <div class="hs-week-menu-group__header">
+                      <span class="hs-week-menu-group__title"><?php echo esc_html($label_text); ?></span>
+                      <?php if ($price_text !== '') : ?><span class="hs-week-menu-group__price"><?php echo esc_html($price_text); ?></span><?php endif; ?>
+                    </div>
+                    <div id="mains-<?php echo esc_attr($index . '-' . $group_key); ?>" class="hs-mains" data-include-price="0" data-has-sides="<?php echo $use_sides ? '1' : '0'; ?>" data-group-key="<?php echo esc_attr($group_key); ?>" data-next-subindex="<?php echo esc_attr($next_subindex); ?>">
+                      <?php foreach ($output_rows as $row_meta) :
+                          $row_key = $row_meta['key'];
+                          $row = $row_meta['row'];
+                          $row_sides = is_array($row['sides'] ?? null) ? array_map('intval', $row['sides']) : [];
+                          $allergen_value = $this->format_allergens_field($row['allergens'] ?? []);
+                          ?>
+                          <div class="row main" data-group-key="<?php echo esc_attr($group_key); ?>" data-subindex="<?php echo esc_attr($row_key); ?>">
+                            <input class="meal-autocomplete" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_key); ?>][title]" type="text" placeholder="Název jídla…" value="<?php echo esc_attr($row['title'] ?? ''); ?>">
+                            <input class="meal-id" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_key); ?>][id]" value="<?php echo esc_attr($row['id'] ?? ''); ?>">
+                            <input class="meal-allergens" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_key); ?>][allergens]" value="<?php echo esc_attr($allergen_value); ?>">
+                            <input class="menu-group-key" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_key); ?>][menu_group]" value="<?php echo esc_attr($group_key); ?>">
+                            <?php if ($use_sides) : ?>
+                              <div class="sides">
+                                <?php foreach ($sides as $side) :
+                                    $term_id = is_object($side) ? $side->term_id : (isset($side['term_id']) ? $side['term_id'] : '');
+                                    $term_name = is_object($side) ? $side->name : (isset($side['name']) ? $side['name'] : '');
+                                    if (!$term_id) {
+                                        continue;
+                                    }
+                                    ?>
+                                    <label><input type="checkbox" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_key); ?>][sides][]" value="<?php echo esc_attr($term_id); ?>" <?php checked(in_array((int)$term_id, $row_sides, true)); ?>> <?php echo esc_html($term_name); ?></label>
+                                <?php endforeach; ?>
+                              </div>
+                            <?php else : ?>
+                              <?php foreach ($row_sides as $side_id) : ?>
+                                <input type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_key); ?>][sides][]" value="<?php echo esc_attr($side_id); ?>">
+                              <?php endforeach; ?>
+                            <?php endif; ?>
+                            <button type="button" class="button link-button remove-row" data-week-index="<?php echo esc_attr($index); ?>" data-group-key="<?php echo esc_attr($group_key); ?>">Odstranit</button>
+                          </div>
                       <?php endforeach; ?>
                     </div>
-                    <button type="button" class="button link-button remove-row" data-week-index="<?php echo esc_attr($index); ?>">Odstranit</button>
+                    <p class="hs-week-add"><button type="button" class="button add-row-week" data-week-index="<?php echo esc_attr($index); ?>" data-group-key="<?php echo esc_attr($group_key); ?>">Přidat jídlo</button></p>
                   </div>
-                  <?php
-              }
-              ?>
-            </div>
-            <p class="hs-week-add"><button type="button" class="button add-row-week" data-week-index="<?php echo esc_attr($index); ?>">Přidat jídlo</button></p>
+              <?php endforeach; ?>
+            <?php else : ?>
+              <div id="mains-<?php echo esc_attr($index); ?>" class="hs-mains" data-include-price="1" data-has-sides="<?php echo $use_sides ? '1' : '0'; ?>">
+                <?php
+                if (!empty($mains_raw)) {
+                    foreach ($mains_raw as $i=>$row) {
+                        if (!is_array($row)) {
+                            continue;
+                        }
+                        $row_sides = is_array($row['sides'] ?? null) ? array_map('intval', $row['sides']) : [];
+                        ?>
+                        <div class="row main" data-index="<?php echo esc_attr($i); ?>">
+                          <input class="meal-autocomplete" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][title]" type="text" placeholder="Název jídla…" value="<?php echo esc_attr($row['title'] ?? ''); ?>">
+                          <input class="meal-id" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][id]" value="<?php echo esc_attr($row['id'] ?? ''); ?>">
+                          <input class="meal-allergens" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][allergens]" value="<?php echo esc_attr($this->format_allergens_field($row['allergens'] ?? [])); ?>">
+                          <input class="price" type="text" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][price]" placeholder="Cena (Kč)" value="<?php echo esc_attr($row['price'] ?? ''); ?>">
+                          <?php if ($use_sides) : ?>
+                            <div class="sides">
+                              <?php foreach ($sides as $side): $term_id = is_object($side)?$side->term_id:(isset($side['term_id'])?$side['term_id']:''); $term_name = is_object($side)?$side->name:(isset($side['name'])?$side['name']:''); if (!$term_id) { continue; } ?>
+                                <label><input type="checkbox" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][sides][]" value="<?php echo esc_attr($term_id); ?>" <?php checked(in_array((int)$term_id, $row_sides, true)); ?>> <?php echo esc_html($term_name); ?></label>
+                              <?php endforeach; ?>
+                            </div>
+                          <?php else : ?>
+                            <?php foreach ($row_sides as $side_id) : ?>
+                              <input type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][sides][]" value="<?php echo esc_attr($side_id); ?>">
+                            <?php endforeach; ?>
+                          <?php endif; ?>
+                          <button type="button" class="button link-button remove-row" data-week-index="<?php echo esc_attr($index); ?>">Odstranit</button>
+                        </div>
+                        <?php
+                    }
+                } else {
+                    ?>
+                    <div class="row main" data-index="0">
+                      <input class="meal-autocomplete" name="week[mains][<?php echo esc_attr($index); ?>][0][title]" type="text" placeholder="Název jídla…" value="">
+                      <input class="meal-id" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][0][id]" value="">
+                      <input class="meal-allergens" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][0][allergens]" value="">
+                      <input class="price" type="text" name="week[mains][<?php echo esc_attr($index); ?>][0][price]" placeholder="Cena (Kč)" value="">
+                      <?php if ($use_sides) : ?>
+                        <div class="sides">
+                          <?php foreach ($sides as $side): $term_id = is_object($side)?$side->term_id:(isset($side['term_id'])?$side['term_id']:''); $term_name = is_object($side)?$side->name:(isset($side['name'])?$side['name']:''); if (!$term_id) { continue; } ?>
+                            <label><input type="checkbox" name="week[mains][<?php echo esc_attr($index); ?>][0][sides][]" value="<?php echo esc_attr($term_id); ?>"> <?php echo esc_html($term_name); ?></label>
+                          <?php endforeach; ?>
+                        </div>
+                      <?php endif; ?>
+                      <button type="button" class="button link-button remove-row" data-week-index="<?php echo esc_attr($index); ?>">Odstranit</button>
+                    </div>
+                    <?php
+                }
+                ?>
+              </div>
+              <p class="hs-week-add"><button type="button" class="button add-row-week" data-week-index="<?php echo esc_attr($index); ?>">Přidat jídlo</button></p>
+            <?php endif; ?>
           </div>
         </fieldset>
         <?php
@@ -1154,6 +1541,10 @@ JS;
         $sides_terms = $sides_data['terms'];
         $sides_map = $sides_data['map'];
 
+        $pricing_mode = $this->get_pricing_mode();
+        $menu_groups = $this->get_menu_groups_setting();
+        $use_sides = $this->should_manage_sides();
+
         $days_data=[];
         for($i=0;$i<5;$i++){
             $posts=get_posts(['post_type'=>CPT_DAY,'posts_per_page'=>1,'meta_key'=>'menu_date','meta_value'=>$dates[$i]]);
@@ -1175,6 +1566,9 @@ JS;
             'days'        => $days_data,
             'sides_terms' => $sides_terms,
             'sides_map'   => $sides_map,
+            'pricing_mode'=> $pricing_mode,
+            'menu_groups' => $menu_groups,
+            'use_sides'   => $use_sides,
         ];
     }
 
@@ -1197,6 +1591,9 @@ JS;
         $days_data = $week['days'];
         $sides = $week['sides_terms'];
         $monday = $week['monday'];
+        $pricing_mode = $week['pricing_mode'] ?? 'per_item';
+        $menu_groups = is_array($week['menu_groups'] ?? null) ? $week['menu_groups'] : [];
+        $use_sides = !empty($week['use_sides']);
         $day_count = count($dates);
         ?>
         <div class="wrap">
@@ -1218,7 +1615,7 @@ JS;
               <p class="description">Změnou data se načte zvolený týden (pondělí–pátek) bez uložení.</p>
             </div>
             <div class="hs-week-grid">
-              <?php for($i=0;$i<$day_count;$i++){ $this->render_week_day_block($i,$labels[$i] ?? '',$dates[$i] ?? '',$sides,$days_data[$i] ?? []); } ?>
+              <?php for($i=0;$i<$day_count;$i++){ $this->render_week_day_block($i,$labels[$i] ?? '',$dates[$i] ?? '',$sides,$days_data[$i] ?? [],$use_sides,$pricing_mode,$menu_groups); } ?>
             </div>
             <div class="hs-week-actions">
               <button class="button button-primary">Uložit celý týden</button>
@@ -1240,12 +1637,22 @@ JS;
         $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : '';
         $preferences = $this->get_menu_preferences();
         $soup_mode = $preferences['soup_price_mode'] ?? 'included';
+        $sides_mode = $preferences['sides_mode'] ?? 'taxonomy';
+        $pricing_mode = $preferences['pricing_mode'] ?? 'per_item';
         $static_items = $branding['static_menu_items'] ?? [];
         if (!is_array($static_items) || empty($static_items)) {
             $static_items = [
                 ['id' => 0, 'title' => '', 'price' => '', 'sides' => [], 'allergens' => []],
             ];
         }
+        $menu_groups = is_array($preferences['menu_groups'] ?? null) ? $preferences['menu_groups'] : [];
+        if (empty($menu_groups)) {
+            $menu_groups = [
+                ['key' => 'menu_1', 'label' => 'MENU 1', 'price' => ''],
+                ['key' => 'menu_2', 'label' => 'MENU 2', 'price' => ''],
+            ];
+        }
+        $use_sides = $this->should_manage_sides();
         $sides_data = $this->get_sides_data();
         $sides_terms = $sides_data['terms'];
         ?>
@@ -1291,7 +1698,7 @@ JS;
             <div class="hs-branding__static">
               <h2>Stálá nabídka</h2>
               <p class="description">Vyberte položky z knihovny jídel. Budou zobrazeny pod týdenním menu na webu i v PDF exportu.</p>
-              <div id="hs-static-menu" class="hs-static-menu hs-mains">
+              <div id="hs-static-menu" class="hs-static-menu hs-mains" data-has-sides="<?php echo $use_sides ? '1' : '0'; ?>">
                 <?php foreach ($static_items as $index => $item) :
                     $item_id = (int)($item['id'] ?? 0);
                     $item_title = (string)($item['title'] ?? '');
@@ -1305,33 +1712,75 @@ JS;
                       <input class="meal-id" type="hidden" name="static_menu[<?php echo esc_attr($index); ?>][id]" value="<?php echo esc_attr($item_id); ?>">
                       <input class="meal-allergens" type="hidden" name="static_menu[<?php echo esc_attr($index); ?>][allergens]" value="<?php echo esc_attr($allergen_value); ?>">
                       <input class="price" type="text" name="static_menu[<?php echo esc_attr($index); ?>][price]" placeholder="Cena (Kč)" value="<?php echo esc_attr($item_price); ?>">
-                      <div class="sides">
-                        <?php foreach ($sides_terms as $side) :
-                            $term_id = is_object($side) ? $side->term_id : ($side['term_id'] ?? 0);
-                            $term_name = is_object($side) ? $side->name : ($side['name'] ?? '');
-                            if (!$term_id) {
-                                continue;
-                            }
-                            ?>
-                            <label><input type="checkbox" name="static_menu[<?php echo esc_attr($index); ?>][sides][]" value="<?php echo esc_attr($term_id); ?>" <?php checked(in_array((int)$term_id, $item_sides, true)); ?>> <?php echo esc_html($term_name); ?></label>
+                      <?php if ($use_sides) : ?>
+                        <div class="sides">
+                          <?php foreach ($sides_terms as $side) :
+                              $term_id = is_object($side) ? $side->term_id : ($side['term_id'] ?? 0);
+                              $term_name = is_object($side) ? $side->name : ($side['name'] ?? '');
+                              if (!$term_id) {
+                                  continue;
+                              }
+                              ?>
+                              <label><input type="checkbox" name="static_menu[<?php echo esc_attr($index); ?>][sides][]" value="<?php echo esc_attr($term_id); ?>" <?php checked(in_array((int)$term_id, $item_sides, true)); ?>> <?php echo esc_html($term_name); ?></label>
+                          <?php endforeach; ?>
+                        </div>
+                      <?php else : ?>
+                        <?php foreach ($item_sides as $preserve_side) : ?>
+                          <input type="hidden" name="static_menu[<?php echo esc_attr($index); ?>][sides][]" value="<?php echo esc_attr($preserve_side); ?>">
                         <?php endforeach; ?>
-                      </div>
+                      <?php endif; ?>
                       <button type="button" class="button link-button remove-row" data-static-index="<?php echo esc_attr($index); ?>">Odstranit</button>
                     </div>
                 <?php endforeach; ?>
-              </div>
-              <p class="hs-static-actions"><button type="button" class="button" id="hs-static-add">Přidat položku</button></p>
             </div>
-            <fieldset class="hs-branding__soup">
-              <legend><strong>Zobrazení ceny polévky</strong></legend>
-              <label><input type="radio" name="soup_price_mode" value="included" <?php checked('included', $soup_mode); ?>> Polévka je v ceně menu (nezobrazovat cenu zvlášť)</label><br>
-              <label><input type="radio" name="soup_price_mode" value="separate" <?php checked('separate', $soup_mode); ?>> Polévka se účtuje zvlášť (zobrazit cenu samostatně)</label>
-              <p class="description">Nastavení ovlivní veřejné zobrazení jídelníčku i export do PDF.</p>
-            </fieldset>
-            <p>
-              <button type="submit" class="button button-primary">Uložit nastavení</button>
-              <a class="button button-secondary" href="<?php echo esc_url(admin_url('admin.php?page=hospoda-week')); ?>">Zpět na týdenní menu</a>
-            </p>
+            <p class="hs-static-actions"><button type="button" class="button" id="hs-static-add">Přidat položku</button></p>
+          </div>
+          <fieldset class="hs-branding__sides">
+            <legend><strong>Práce s přílohami</strong></legend>
+            <label><input type="radio" name="sides_mode" value="taxonomy" <?php checked('taxonomy', $sides_mode); ?>> Přílohy spravujeme zvlášť a vybíráme je z knihovny</label><br>
+            <label><input type="radio" name="sides_mode" value="disabled" <?php checked('disabled', $sides_mode); ?>> Přílohy zapisujeme přímo do názvu jídla (bez samostatného výběru)</label>
+            <p class="description">Volba ovlivní administraci i výstupy – při vypnutí se seznam příloh skryje a již uložené přílohy zůstanou pouze pro případný návrat k původnímu režimu.</p>
+          </fieldset>
+          <fieldset class="hs-branding__soup">
+            <legend><strong>Zobrazení ceny polévky</strong></legend>
+            <label><input type="radio" name="soup_price_mode" value="included" <?php checked('included', $soup_mode); ?>> Polévka je v ceně menu (nezobrazovat cenu zvlášť)</label><br>
+            <label><input type="radio" name="soup_price_mode" value="separate" <?php checked('separate', $soup_mode); ?>> Polévka se účtuje zvlášť (zobrazit cenu samostatně)</label>
+            <p class="description">Nastavení ovlivní veřejné zobrazení jídelníčku i export do PDF.</p>
+          </fieldset>
+          <fieldset class="hs-branding__pricing">
+            <legend><strong>Zobrazení cen hlavních jídel</strong></legend>
+            <label><input type="radio" name="pricing_mode" value="per_item" <?php checked('per_item', $pricing_mode); ?>> Každé jídlo má vlastní cenu (původní způsob)</label><br>
+            <label><input type="radio" name="pricing_mode" value="menu_groups" <?php checked('menu_groups', $pricing_mode); ?>> Využít menu skupiny (MENU 1, MENU 2…) s cenou v nadpisu</label>
+            <div class="hs-branding__menu-groups<?php echo $pricing_mode === 'menu_groups' ? '' : ' is-hidden'; ?>">
+              <p class="description">Zadejte názvy menu a jejich ceny. V týdenním menu pak pro každý den vznikne samostatná sekce podle těchto řádků.</p>
+              <div id="hs-menu-groups" class="hs-menu-groups" data-next-index="<?php echo esc_attr(count($menu_groups)); ?>">
+                <?php foreach ($menu_groups as $i => $group) :
+                    $group_key = isset($group['key']) ? sanitize_key($group['key']) : '';
+                    if ($group_key === '') {
+                        $group_key = 'menu_' . ($i + 1);
+                    }
+                    $group_label = isset($group['label']) ? (string)$group['label'] : '';
+                    $group_price = isset($group['price']) ? (string)$group['price'] : '';
+                    ?>
+                    <div class="hs-menu-group" data-index="<?php echo esc_attr($i); ?>">
+                      <input type="hidden" name="menu_groups[<?php echo esc_attr($i); ?>][key]" value="<?php echo esc_attr($group_key); ?>">
+                      <label>Název menu
+                        <input type="text" name="menu_groups[<?php echo esc_attr($i); ?>][label]" value="<?php echo esc_attr($group_label); ?>">
+                      </label>
+                      <label>Cena / popisek
+                        <input type="text" name="menu_groups[<?php echo esc_attr($i); ?>][price]" value="<?php echo esc_attr($group_price); ?>">
+                      </label>
+                      <button type="button" class="button link-button hs-menu-group-remove">Odstranit</button>
+                    </div>
+                <?php endforeach; ?>
+              </div>
+              <p class="hs-menu-groups__actions"><button type="button" class="button" id="hs-menu-groups-add">Přidat menu</button></p>
+            </div>
+          </fieldset>
+          <p>
+            <button type="submit" class="button button-primary">Uložit nastavení</button>
+            <a class="button button-secondary" href="<?php echo esc_url(admin_url('admin.php?page=hospoda-week')); ?>">Zpět na týdenní menu</a>
+          </p>
           </form>
         </div>
         <?php
@@ -1345,6 +1794,24 @@ JS;
         $week = $_POST['week'] ?? [];
 
         // Uložení 5 pracovních dní (Po–Pá)
+        $use_sides = $this->should_manage_sides();
+        $use_groups = $this->should_use_menu_groups();
+        $group_settings = $this->get_menu_groups_setting();
+        $group_keys = [];
+        foreach ($group_settings as $group) {
+            if (!is_array($group)) {
+                continue;
+            }
+            $key = isset($group['key']) ? (string)$group['key'] : '';
+            if ($key !== '') {
+                $group_keys[] = sanitize_key($key);
+            }
+        }
+        $group_keys = array_values(array_filter($group_keys, static function ($key) {
+            return $key !== '';
+        }));
+        $default_group_key = $group_keys[0] ?? '';
+
         for ($i = 0; $i < 5; $i++) {
             $date = date('Y-m-d', strtotime("+{$i} day", strtotime($monday)));
 
@@ -1386,12 +1853,23 @@ JS;
             foreach ($mains_in as $row) {
                 $id = intval($row['id'] ?? 0);
                 if (!$id && !empty($row['title'])){ $id = $this->ensure_meal_exists($row['title']); }
+                $sides_list = array_values(array_unique(array_map('intval', $row['sides'] ?? [])));
+                $group_key = '';
+                if ($use_groups) {
+                    $group_candidate = isset($row['menu_group']) ? sanitize_key($row['menu_group']) : '';
+                    if ($group_candidate !== '' && in_array($group_candidate, $group_keys, true)) {
+                        $group_key = $group_candidate;
+                    } else {
+                        $group_key = $default_group_key;
+                    }
+                }
                 $mains[] = [
                     'id'    => $id,
                     'title' => $this->meal_title_by_id($id, sanitize_text_field($row['title'] ?? '')),
                     'price' => sanitize_text_field($row['price'] ?? ''),
-                    'sides' => array_values(array_unique(array_map('intval', $row['sides'] ?? []))),
+                    'sides' => $sides_list,
                     'allergens' => $this->sanitize_allergen_list($row['allergens'] ?? []),
+                    'menu_group' => $group_key,
                 ];
             }
             update_post_meta($post_id, 'mains', $mains);
@@ -1443,8 +1921,12 @@ JS;
         $this->static_menu_cache = null;
         $this->meal_terms_cache = [];
 
+        $raw_groups = isset($_POST['menu_groups']) && is_array($_POST['menu_groups']) ? wp_unslash($_POST['menu_groups']) : [];
         $preferences = [
             'soup_price_mode' => $this->normalize_soup_price_mode(isset($_POST['soup_price_mode']) ? sanitize_text_field(wp_unslash($_POST['soup_price_mode'])) : ''),
+            'sides_mode'      => $this->normalize_sides_mode(isset($_POST['sides_mode']) ? sanitize_text_field(wp_unslash($_POST['sides_mode'])) : ''),
+            'pricing_mode'    => $this->normalize_pricing_mode(isset($_POST['pricing_mode']) ? sanitize_text_field(wp_unslash($_POST['pricing_mode'])) : ''),
+            'menu_groups'     => $this->prepare_menu_groups_submission($raw_groups),
         ];
         update_option('hsp_menu_preferences', $preferences, false);
         $this->menu_preferences_cache = null;
@@ -1460,6 +1942,7 @@ JS;
         $week = $this->prepare_week_context($week_start);
         $branding = $this->get_pdf_branding_settings();
         $branding['logo_path'] = $this->resolve_branding_logo_path((int)($branding['logo_id'] ?? 0));
+        $preferences = $this->get_menu_preferences();
 
         require_once __DIR__ . '/includes/class-simple-pdf.php';
         require_once __DIR__ . '/includes/class-week-pdf-exporter.php';
@@ -1468,6 +1951,9 @@ JS;
         $exportOptions = [
             'show_soup_price' => $this->should_show_soup_price(),
             'static_menu'     => $this->get_static_menu_items(),
+            'pricing_mode'    => $preferences['pricing_mode'] ?? 'per_item',
+            'menu_groups'     => $preferences['menu_groups'] ?? [],
+            'show_sides'      => $this->should_manage_sides(),
         ];
         $pdf = $exporter->build($week, $branding, $exportOptions);
 
@@ -1504,6 +1990,9 @@ JS;
     public function render_day_metabox($post){
         $soup  = get_post_meta($post->ID,'soup',true);
         $mains = get_post_meta($post->ID,'mains',true);
+        $use_groups = $this->should_use_menu_groups();
+        $menu_groups = $this->get_menu_groups_setting();
+        $sides_map = $this->should_manage_sides() ? $this->get_sides_data()['map'] : [];
         echo '<style>.hs-meta ul{margin-left:1em} .hs-meta li{margin:.25em 0}</style>';
         echo '<div class="hs-meta">';
         echo '<p><strong>Datum:</strong> ' . esc_html( get_post_meta($post->ID,'menu_date',true) ) . '</p>';
@@ -1519,17 +2008,73 @@ JS;
         }
         echo '<h4>Hlavní jídla</h4>';
         if (!empty($mains) && is_array($mains)){
-            echo '<ul>';
-            foreach($mains as $row){
-                $line = esc_html($row['title'] ?? '');
-                if (!empty($row['sides'])){
-                    $names = array_map(function($tid){ $t = get_term($tid); return $t ? $t->name : ''; }, $row['sides']);
-                    $line .= ' (' . esc_html(implode(', ', array_filter($names))) . ')';
+            if ($use_groups && !empty($menu_groups)) {
+                $grouped_mains = $this->group_mains_by_menu($mains, $menu_groups);
+                foreach ($menu_groups as $group) {
+                    $group_key = isset($group['key']) ? sanitize_key($group['key']) : '';
+                    if ($group_key === '') {
+                        continue;
+                    }
+                    $items = $grouped_mains[$group_key] ?? [];
+                    if (empty($items)) {
+                        continue;
+                    }
+                    $label = isset($group['label']) ? (string)$group['label'] : '';
+                    if ($label === '') {
+                        $label = strtoupper($group_key);
+                    }
+                    $price = isset($group['price']) ? (string)$group['price'] : '';
+                    echo '<h5 style="margin:.5em 0 0;">' . esc_html($label) . ($price !== '' ? ' — ' . esc_html($price) : '') . '</h5>';
+                    echo '<ul>';
+                    foreach ($items as $row) {
+                        if (!is_array($row)) {
+                            continue;
+                        }
+                        $line = esc_html($row['title'] ?? '');
+                        if (!empty($row['sides']) && is_array($row['sides'])) {
+                            $names = [];
+                            foreach ($row['sides'] as $side_id) {
+                                $side_id = (int)$side_id;
+                                if ($side_id && isset($sides_map[$side_id])) {
+                                    $names[] = $sides_map[$side_id];
+                                }
+                            }
+                            $names = array_filter($names);
+                            if (!empty($names)) {
+                                $line .= ' (' . esc_html(implode(', ', $names)) . ')';
+                            }
+                        }
+                        echo '<li>'.$line.'</li>';
+                    }
+                    echo '</ul>';
                 }
-                if (!empty($row['price'])) $line .= ' — '.esc_html($row['price']).' Kč';
-                echo '<li>'.$line.'</li>';
+            } else {
+                echo '<ul>';
+                foreach($mains as $row){
+                    if (!is_array($row)) {
+                        continue;
+                    }
+                    $line = esc_html($row['title'] ?? '');
+                    if (!empty($row['sides'])){
+                        $names = [];
+                        foreach ($row['sides'] as $side_id) {
+                            $side_id = (int)$side_id;
+                            if ($side_id && isset($sides_map[$side_id])) {
+                                $names[] = $sides_map[$side_id];
+                            }
+                        }
+                        $names = array_filter($names);
+                        if (!empty($names)) {
+                            $line .= ' (' . esc_html(implode(', ', $names)) . ')';
+                        }
+                    }
+                    if (!empty($row['price'])) {
+                        $line .= ' — '.esc_html($row['price']).' Kč';
+                    }
+                    echo '<li>'.$line.'</li>';
+                }
+                echo '</ul>';
             }
-            echo '</ul>';
         } else {
             echo '<p><em>žádná hlavní jídla</em></p>';
         }
@@ -1574,6 +2119,10 @@ JS;
         $soup  = get_post_meta($post_id,'soup',true);
         $mains = get_post_meta($post_id,'mains',true);
         $show_soup_price = $this->should_show_soup_price();
+        $use_groups = $this->should_use_menu_groups();
+        $menu_groups = $this->get_menu_groups_setting();
+        $use_sides = $this->should_manage_sides();
+        $sides_map = $use_sides ? $this->get_sides_data()['map'] : [];
         ob_start();
         echo '<div class="hsp-day" data-date="'.esc_attr($date).'">';
         $heading  = '<h4 class="hsp-day__heading">'.esc_html( wp_date('l', strtotime($date)) ).' • '.esc_html( wp_date('j. n. Y', strtotime($date)) );
@@ -1588,23 +2137,83 @@ JS;
             echo '</div>';
         }
         if (!empty($mains) && is_array($mains)){
-            echo '<ul class="hsp-mains">';
-            foreach($mains as $row){
-                $title = esc_html($row['title'] ?? '');
-                $price = !empty($row['price']) ? '<span class="hsp-price">'.esc_html($row['price']).' Kč</span>' : '';
-                $sidesText = '';
-                if (!empty($row['sides'])){
-                    $names = array_map(function($tid){ $t = get_term($tid); return $t ? $t->name : ''; }, $row['sides']);
-                    $names = array_filter($names);
-                    if (!empty($names)) $sidesText = '<small class="hsp-sides">('.esc_html(implode(', ',$names)).')</small>';
+            if ($use_groups && !empty($menu_groups)) {
+                $grouped_mains = $this->group_mains_by_menu($mains, $menu_groups);
+                echo '<div class="hsp-menu-groups">';
+                foreach ($menu_groups as $group) {
+                    $group_key = isset($group['key']) ? sanitize_key($group['key']) : '';
+                    if ($group_key === '') {
+                        continue;
+                    }
+                    $items = $grouped_mains[$group_key] ?? [];
+                    if (empty($items)) {
+                        continue;
+                    }
+                    $label = isset($group['label']) ? (string)$group['label'] : '';
+                    if ($label === '') {
+                        $label = strtoupper($group_key);
+                    }
+                    $price_label = isset($group['price']) ? (string)$group['price'] : '';
+                    echo '<div class="hsp-menu-group">';
+                    echo '<div class="hsp-menu-group__title">'.esc_html($label);
+                    if ($price_label !== '') {
+                        echo '<span class="hsp-menu-group__price">'.esc_html($price_label).'</span>';
+                    }
+                    echo '</div>';
+                    echo '<ul class="hsp-menu-group__list">';
+                    foreach ($items as $row) {
+                        if (!is_array($row)) {
+                            continue;
+                        }
+                        $title = esc_html($row['title'] ?? '');
+                        $sidesText = '';
+                        if ($use_sides && !empty($row['sides'])) {
+                            $names = [];
+                            foreach ($row['sides'] as $side_id) {
+                                $side_id = (int)$side_id;
+                                if ($side_id && isset($sides_map[$side_id])) {
+                                    $names[] = $sides_map[$side_id];
+                                }
+                            }
+                            $names = array_filter($names);
+                            if (!empty($names)) {
+                                $sidesText = '<small class="hsp-sides">('.esc_html(implode(', ', $names)).')</small>';
+                            }
+                        }
+                        echo '<li class="hsp-menu-group__item"><span class="hsp-title">'.$title.'</span>'.$sidesText.'</li>';
+                    }
+                    echo '</ul>';
+                    echo '</div>';
                 }
-                echo '<li class="hsp-item hsp-grid"'
-                    . '><span class="hsp-title">'.$title.'</span>'
-                    . $sidesText
-                    . $price
-                    . '</li>';
+                echo '</div>';
+            } else {
+                echo '<ul class="hsp-mains">';
+                foreach($mains as $row){
+                    if (!is_array($row)) {
+                        continue;
+                    }
+                    $title = esc_html($row['title'] ?? '');
+                    $price = !empty($row['price']) ? '<span class="hsp-price">'.esc_html($row['price']).' Kč</span>' : '';
+                    $sidesText = '';
+                    if ($use_sides && !empty($row['sides'])){
+                        $names = [];
+                        foreach ($row['sides'] as $side_id) {
+                            $side_id = (int)$side_id;
+                            if ($side_id && isset($sides_map[$side_id])) {
+                                $names[] = $sides_map[$side_id];
+                            }
+                        }
+                        $names = array_filter($names);
+                        if (!empty($names)) $sidesText = '<small class="hsp-sides">('.esc_html(implode(', ',$names)).')</small>';
+                    }
+                    echo '<li class="hsp-item hsp-grid"'
+                        . '><span class="hsp-title">'.$title.'</span>'
+                        . $sidesText
+                        . $price
+                        . '</li>';
+                }
+                echo '</ul>';
             }
-            echo '</ul>';
         }
         echo '</div>'; // .hsp-body
         echo '</div>';
