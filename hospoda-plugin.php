@@ -2003,50 +2003,6 @@ JS;
         $sides_data = $this->get_sides_data();
         $sides_terms = $sides_data['terms'];
 
-        $frontend_theme = $this->get_frontend_theme_settings();
-        $theme_defaults = $this->get_frontend_theme_defaults();
-        $week_theme = $frontend_theme['week'];
-        $static_theme = $frontend_theme['static'];
-        $typo_theme = $frontend_theme['typography'];
-        $week_color_fields = [
-            'card_bg'            => ['label' => 'Pozadí karty dne'],
-            'card_border'        => ['label' => 'Rámeček dne'],
-            'heading_bg'         => ['label' => 'Pozadí záhlaví'],
-            'heading_text'       => ['label' => 'Barva textu záhlaví'],
-            'body_text'          => ['label' => 'Základní text jídel'],
-            'sides_text'         => ['label' => 'Text příloh'],
-            'price_text'         => ['label' => 'Barva ceny jídel'],
-            'badge_bg'           => ['label' => 'Pozadí odznaku „Dnes“'],
-            'badge_text'         => ['label' => 'Text odznaku „Dnes“'],
-            'group_bg'           => ['label' => 'Pozadí menu skupin'],
-            'group_border'       => ['label' => 'Rámeček menu skupin'],
-            'group_title'        => ['label' => 'Nadpis menu skupiny'],
-            'group_price'        => ['label' => 'Barva ceny menu'],
-            'bullet_color'       => ['label' => 'Odrážky denních jídel', 'description' => 'Použije se, pokud jsou odrážky zapnuté.'],
-            'group_bullet_color' => ['label' => 'Odrážky v menu skupinách'],
-        ];
-        $static_color_fields = [
-            'background'   => ['label' => 'Pozadí bloku'],
-            'border'       => ['label' => 'Rámeček bloku'],
-            'title'        => ['label' => 'Nadpis bloku'],
-            'text'         => ['label' => 'Text položek'],
-            'price'        => ['label' => 'Barva ceny'],
-            'bullet_color' => ['label' => 'Odrážky položek'],
-        ];
-        $bullet_options = [
-            'none'   => 'Bez odrážek',
-            'disc'   => 'Tečka',
-            'dash'   => 'Pomlčka',
-            'square' => 'Čtvereček',
-            'arrow'  => 'Šipka',
-        ];
-        $weight_options = [
-            '500' => 'Střední (500)',
-            '600' => 'Polotučné (600)',
-            '700' => 'Tučné (700)',
-            '400' => 'Normální (400)',
-        ];
-        $base_size_value = isset($typo_theme['base_size']) ? (int)$typo_theme['base_size'] : 16;
         $sides_map = $sides_data['map'];
 
         $pricing_mode = $this->get_pricing_mode();
@@ -2177,6 +2133,50 @@ JS;
         $use_sides = $this->should_manage_sides();
         $sides_data = $this->get_sides_data();
         $sides_terms = $sides_data['terms'];
+        $frontend_theme = $this->get_frontend_theme_settings();
+        $theme_defaults = $this->get_frontend_theme_defaults();
+        $week_theme = $frontend_theme['week'];
+        $static_theme = $frontend_theme['static'];
+        $typo_theme = $frontend_theme['typography'];
+        $week_color_fields = [
+            'card_bg'            => ['label' => 'Pozadí karty dne'],
+            'card_border'        => ['label' => 'Rámeček dne'],
+            'heading_bg'         => ['label' => 'Pozadí záhlaví'],
+            'heading_text'       => ['label' => 'Barva textu záhlaví'],
+            'body_text'          => ['label' => 'Základní text jídel'],
+            'sides_text'         => ['label' => 'Text příloh'],
+            'price_text'         => ['label' => 'Barva ceny jídel'],
+            'badge_bg'           => ['label' => 'Pozadí odznaku „Dnes“'],
+            'badge_text'         => ['label' => 'Text odznaku „Dnes“'],
+            'group_bg'           => ['label' => 'Pozadí menu skupin'],
+            'group_border'       => ['label' => 'Rámeček menu skupin'],
+            'group_title'        => ['label' => 'Nadpis menu skupiny'],
+            'group_price'        => ['label' => 'Barva ceny menu'],
+            'bullet_color'       => ['label' => 'Odrážky denních jídel', 'description' => 'Použije se, pokud jsou odrážky zapnuté.'],
+            'group_bullet_color' => ['label' => 'Odrážky v menu skupinách'],
+        ];
+        $static_color_fields = [
+            'background'   => ['label' => 'Pozadí bloku'],
+            'border'       => ['label' => 'Rámeček bloku'],
+            'title'        => ['label' => 'Nadpis bloku'],
+            'text'         => ['label' => 'Text položek'],
+            'price'        => ['label' => 'Barva ceny'],
+            'bullet_color' => ['label' => 'Odrážky položek'],
+        ];
+        $bullet_options = [
+            'none'   => 'Bez odrážek',
+            'disc'   => 'Tečka',
+            'dash'   => 'Pomlčka',
+            'square' => 'Čtvereček',
+            'arrow'  => 'Šipka',
+        ];
+        $weight_options = [
+            '500' => 'Střední (500)',
+            '600' => 'Polotučné (600)',
+            '700' => 'Tučné (700)',
+            '400' => 'Normální (400)',
+        ];
+        $base_size_value = isset($typo_theme['base_size']) ? (int)$typo_theme['base_size'] : 16;
         ?>
         <div class="wrap">
           <h1>Nastavení</h1>
