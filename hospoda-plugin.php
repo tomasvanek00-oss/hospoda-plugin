@@ -724,9 +724,56 @@ JS;
         if ($is_branding_page) {
             \wp_enqueue_style('wp-color-picker');
             \wp_enqueue_script('wp-color-picker');
-            \wp_add_inline_script('wp-color-picker', 'jQuery(function($){$(".hs-color-field").wpColorPicker();});');
+            $color_picker_js = <<<'JS'
+jQuery(function($){
+  function normaliseColor(value){
+    return (value || '').toString().trim().toLowerCase();
+  }
+
+  function updatePaletteState($input, color){
+    var normalised = normaliseColor(typeof color !== 'undefined' ? color : $input.val());
+    $input.closest('.hs-branding__field').find('.hs-color-swatch').each(function(){
+      var $swatch = $(this);
+      var swatchColor = normaliseColor($swatch.data('color'));
+      $swatch.toggleClass('is-active', swatchColor !== '' && swatchColor === normalised);
+    });
+  }
+
+  $('.hs-color-field').each(function(){
+    var $input = $(this);
+    $input.wpColorPicker({
+      change: function(event, ui){
+        var value = ui && ui.color ? ui.color.toString() : '';
+        updatePaletteState($(event.target), value);
+      },
+      clear: function(event){
+        updatePaletteState($(event.target), '');
+      }
+    });
+    updatePaletteState($input, $input.val());
+  });
+
+  $('.hs-branding').on('click', '.hs-color-swatch', function(event){
+    event.preventDefault();
+    var $swatch = $(this);
+    var color = normaliseColor($swatch.data('color'));
+    var $input = $swatch.closest('.hs-branding__field').find('.hs-color-field');
+    if (!$input.length || !color){
+      return;
+    }
+    $input.wpColorPicker('color', color);
+    $input.val(color).trigger('change');
+    updatePaletteState($input, color);
+  });
+
+  $('.hs-branding').on('input change', '.hs-color-field', function(){
+    updatePaletteState($(this), $(this).val());
+  });
+});
+JS;
+            \wp_add_inline_script('wp-color-picker', $color_picker_js);
             $css3 = '.hs-branding{margin:20px 0;padding:20px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;max-width:960px}.hs-branding h2{margin-top:0}.hs-branding__logo{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.hs-branding__preview{width:160px;min-height:120px;border:1px dashed #ccd0d4;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden}.hs-branding__preview img{max-width:100%;height:auto;display:block}.hs-branding__preview span{color:#777;font-style:italic}.hs-branding textarea{max-width:100%}.hs-branding .description{margin-top:4px;color:#555}.hs-branding__controls{display:flex;flex-direction:column;gap:8px}.hs-branding__static{margin-top:24px;padding-top:16px;border-top:1px solid #d8d8d8}.hs-branding__static h2{margin:0 0 6px;font-size:18px}.hs-branding__menu-groups{margin-top:20px;padding:16px;border:1px solid #d9dde8;border-radius:8px;background:#f8fafc}.hs-branding__menu-groups.is-hidden{display:none}.hs-menu-groups{display:flex;flex-direction:column;gap:12px;margin-top:12px}.hs-menu-group{display:flex;flex-wrap:wrap;gap:12px;padding:12px;border:1px solid #e5e7eb;border-radius:6px;background:#fff}.hs-menu-group label{display:flex;flex-direction:column;flex:1 1 220px;font-weight:600;font-size:13px;color:#334155}.hs-menu-group label input[type=text]{margin-top:4px}.hs-menu-group-remove{margin-left:auto}.hs-menu-groups__actions{margin-top:10px}.hs-static-menu{display:flex;flex-direction:column;gap:14px;margin-top:12px}.hs-static-menu .row{display:flex;flex-wrap:wrap;gap:12px;padding:14px;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa}.hs-static-menu .row input.meal-autocomplete{flex:1 1 260px;min-width:220px}.hs-static-menu .row input.price{width:110px}.hs-static-menu .sides{display:flex;flex-wrap:wrap;gap:8px}.hs-static-menu .sides label{margin:0;padding:4px 10px;border:1px solid #d5d7db;border-radius:4px;background:#fff;font-size:13px}.hs-static-menu .remove-row{margin-left:auto}.hs-static-actions{margin-top:12px}';
-            $css3 .= '.hs-branding__theme{margin-top:24px;padding-top:20px;border-top:1px solid #d8d8d8;display:flex;flex-direction:column;gap:20px}.hs-branding__theme-grid{display:grid;gap:18px}.hs-branding__theme-group{border:1px solid #e2e8f0;border-radius:8px;padding:16px 18px;background:#f9fafb;display:flex;flex-direction:column;gap:12px}.hs-branding__theme-group h3{margin:0;font-size:16px;color:#0f172a}.hs-branding__field{display:flex;flex-direction:column;gap:4px}.hs-branding__field label{font-weight:600;font-size:13px;color:#334155}.hs-branding__field input[type=text]{max-width:170px}.hs-branding__field input[type=number]{max-width:120px}.hs-branding__field select{max-width:200px}.hs-branding__field .description{margin:0;font-size:12px;color:#64748b}';
+            $css3 .= '.hs-branding__theme{margin-top:24px;padding-top:20px;border-top:1px solid #d8d8d8;display:flex;flex-direction:column;gap:20px}.hs-branding__theme-grid{display:grid;gap:18px}.hs-branding__theme-group{border:1px solid #e2e8f0;border-radius:8px;padding:16px 18px;background:#f9fafb;display:flex;flex-direction:column;gap:12px}.hs-branding__theme-group h3{margin:0;font-size:16px;color:#0f172a}.hs-branding__field{display:flex;flex-direction:column;gap:4px}.hs-branding__field label{font-weight:600;font-size:13px;color:#334155}.hs-branding__field input[type=text]{max-width:170px}.hs-branding__field input[type=number]{max-width:120px}.hs-branding__field select{max-width:200px}.hs-branding__field .description{margin:0;font-size:12px;color:#64748b}.hs-color-palette{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.hs-color-swatch{--hs-swatch-color:#000;width:34px;height:34px;padding:0;border-radius:4px;border:1px solid #cbd5e1;background:var(--hs-swatch-color);box-shadow:inset 0 0 0 1px rgba(255,255,255,.6);cursor:pointer;position:relative}.hs-color-swatch:hover{box-shadow:0 0 0 2px rgba(37,99,235,.4)}.hs-color-swatch.is-active{box-shadow:0 0 0 3px rgba(37,99,235,.8)}.hs-color-swatch:focus{outline:2px solid #2563eb;outline-offset:2px}';
             $css3 .= '@media(min-width:768px){.hs-branding__theme-grid{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}}';
             wp_add_inline_style('hospoda-admin', $css3);
         }
@@ -2138,6 +2185,18 @@ JS;
         $week_theme = $frontend_theme['week'];
         $static_theme = $frontend_theme['static'];
         $typo_theme = $frontend_theme['typography'];
+        $color_palette = [
+            '#0f172a' => 'Tmavě modrá',
+            '#1d4ed8' => 'Královská modrá',
+            '#0ea5e9' => 'Azurová',
+            '#22c55e' => 'Zelená',
+            '#f97316' => 'Oranžová',
+            '#ef6c00' => 'Tmavě oranžová',
+            '#facc15' => 'Zlatá',
+            '#f1f5f9' => 'Světle šedá',
+            '#1f2937' => 'Břidlicová',
+            '#ffffff' => 'Bílá',
+        ];
         $week_color_fields = [
             'card_bg'            => ['label' => 'Pozadí karty dne'],
             'card_border'        => ['label' => 'Rámeček dne'],
@@ -2313,6 +2372,15 @@ JS;
                     <div class="hs-branding__field">
                       <label for="<?php echo esc_attr($field_id); ?>"><?php echo esc_html($meta['label']); ?></label>
                       <input type="text" class="hs-color-field" id="<?php echo esc_attr($field_id); ?>" name="frontend_theme[week][<?php echo esc_attr($key); ?>]" value="<?php echo esc_attr($value); ?>" data-default-color="<?php echo esc_attr($default); ?>">
+                      <?php if (!empty($color_palette)) : ?>
+                        <div class="hs-color-palette" role="group" aria-label="Rychlý výběr barev">
+                          <?php foreach ($color_palette as $hex => $label) : ?>
+                            <button type="button" class="hs-color-swatch" data-color="<?php echo esc_attr(strtolower($hex)); ?>" title="<?php echo esc_attr($label); ?>" style="--hs-swatch-color: <?php echo esc_attr($hex); ?>;">
+                              <span class="screen-reader-text"><?php echo esc_html($label); ?></span>
+                            </button>
+                          <?php endforeach; ?>
+                        </div>
+                      <?php endif; ?>
                       <?php if (!empty($meta['description'])) : ?>
                         <span class="description"><?php echo esc_html($meta['description']); ?></span>
                       <?php endif; ?>
@@ -2329,6 +2397,15 @@ JS;
                     <div class="hs-branding__field">
                       <label for="<?php echo esc_attr($field_id); ?>"><?php echo esc_html($meta['label']); ?></label>
                       <input type="text" class="hs-color-field" id="<?php echo esc_attr($field_id); ?>" name="frontend_theme[static][<?php echo esc_attr($key); ?>]" value="<?php echo esc_attr($value); ?>" data-default-color="<?php echo esc_attr($default); ?>">
+                      <?php if (!empty($color_palette)) : ?>
+                        <div class="hs-color-palette" role="group" aria-label="Rychlý výběr barev">
+                          <?php foreach ($color_palette as $hex => $label) : ?>
+                            <button type="button" class="hs-color-swatch" data-color="<?php echo esc_attr(strtolower($hex)); ?>" title="<?php echo esc_attr($label); ?>" style="--hs-swatch-color: <?php echo esc_attr($hex); ?>;">
+                              <span class="screen-reader-text"><?php echo esc_html($label); ?></span>
+                            </button>
+                          <?php endforeach; ?>
+                        </div>
+                      <?php endif; ?>
                       <?php if (!empty($meta['description'])) : ?>
                         <span class="description"><?php echo esc_html($meta['description']); ?></span>
                       <?php endif; ?>
