@@ -15,12 +15,11 @@ class Week_Pdf_Exporter {
         $showSoupPrice = !empty($options['show_soup_price']);
         $staticMenu = $this->normalizeStaticMenuItems($options['static_menu'] ?? []);
         $pricingMode = $this->normalizePricingMode($options['pricing_mode'] ?? 'per_item');
-        $menuGroups = $this->sanitizeMenuGroups($options['menu_groups'] ?? []);
         $showSides = !empty($options['show_sides']);
 
         $lastPdf = null;
         foreach ($scales as $scale) {
-            $pdf = $this->renderDocument($week, $branding, $showSoupPrice, $staticMenu, $scale, $pricingMode, $menuGroups, $showSides);
+            $pdf = $this->renderDocument($week, $branding, $showSoupPrice, $staticMenu, $scale, $pricingMode, $showSides);
             if ($pdf->get_page_count() <= 1) {
                 return $pdf->output();
             }
@@ -34,7 +33,7 @@ class Week_Pdf_Exporter {
      * @param array{monday:string,labels:array<int,string>,dates:array<int,string>,days:array<int,array>,sides_map:array<int,string>} $week
      * @param array<int,array<string,mixed>> $staticMenu
      */
-    private function renderDocument(array $week, array $branding, bool $showSoupPrice, array $staticMenu, float $scale, string $pricingMode, array $menuGroups, bool $showSides): Simple_Pdf {
+    private function renderDocument(array $week, array $branding, bool $showSoupPrice, array $staticMenu, float $scale, string $pricingMode, bool $showSides): Simple_Pdf {
         $pdf = new Simple_Pdf();
 
         $startTs = strtotime($week['monday']);
@@ -73,6 +72,8 @@ class Week_Pdf_Exporter {
             }
         }
 
+        $defaultGroups = $this->sanitizeMenuGroups($week['menu_groups_default'] ?? []);
+
         foreach ($week['dates'] as $index => $date) {
             $label = $week['labels'][$index] ?? '';
             $heading = trim($label . ' ' . $this->formatDate($date));
@@ -83,9 +84,13 @@ class Week_Pdf_Exporter {
             $this->addScaledText($pdf, $soupLine, ['indent' => 12.0, 'size' => 9.2, 'spacing_after' => 1.8], $scale);
 
             $mains = $dayData['mains'] ?? [];
-            if ($pricingMode === 'menu_groups' && !empty($menuGroups)) {
-                $grouped = $this->groupMainsByMenu($mains, $menuGroups);
-                foreach ($menuGroups as $group) {
+            $dayGroups = $this->sanitizeMenuGroups($dayData['menu_groups'] ?? []);
+            if ($pricingMode === 'menu_groups' && empty($dayGroups)) {
+                $dayGroups = $defaultGroups;
+            }
+            if ($pricingMode === 'menu_groups' && !empty($dayGroups)) {
+                $grouped = $this->groupMainsByMenu($mains, $dayGroups);
+                foreach ($dayGroups as $group) {
                     $groupKey = isset($group['key']) ? sanitize_key($group['key']) : '';
                     if ($groupKey === '') {
                         continue;
