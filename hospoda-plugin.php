@@ -435,6 +435,21 @@ CSS;
             return $('.hs-week-day[data-week-index="'+index+'"]').first();
           }
 
+          function formatMenuPriceLabel(value){
+            var raw = $.trim(value || '');
+            if (!raw){
+              return '';
+            }
+            var lower = raw.toLowerCase();
+            if (/[€$£]/.test(raw) || lower.indexOf('kč') !== -1 || lower.indexOf('czk') !== -1 || lower.indexOf('eur') !== -1 || lower.indexOf('usd') !== -1){
+              return raw;
+            }
+            if (!/\d/.test(raw)){
+              return raw;
+            }
+            return raw.replace(/\s+$/,'') + ' Kč';
+          }
+
           function syncDayGroupDisplay(dayIndex, key){
             var $day = getDayFieldset(dayIndex);
             if (!$day.length){ return; }
@@ -452,11 +467,12 @@ CSS;
             $group.find('.hs-week-menu-group__title').text(label);
             var $header = $group.find('.hs-week-menu-group__header');
             var $priceEl = $group.find('.hs-week-menu-group__price');
-            if (price){
+            var displayPrice = formatMenuPriceLabel(price);
+            if (displayPrice){
               if (!$priceEl.length){
                 $priceEl = $('<span class="hs-week-menu-group__price"></span>').appendTo($header);
               }
-              $priceEl.text(price);
+              $priceEl.text(displayPrice);
             } else {
               $priceEl.remove();
             }
@@ -723,7 +739,10 @@ JS;
 
         if ($is_branding_page) {
             \wp_enqueue_style('wp-color-picker');
-            \wp_enqueue_script('wp-color-picker');
+            if (!wp_script_is('hospoda-branding', 'registered')) {
+                wp_register_script('hospoda-branding', '', ['jquery', 'wp-color-picker'], VERSION, true);
+            }
+            wp_enqueue_script('hospoda-branding');
             $color_picker_js = <<<'JS'
 jQuery(function($){
   function normaliseColor(value){
@@ -771,7 +790,7 @@ jQuery(function($){
   });
 });
 JS;
-            \wp_add_inline_script('wp-color-picker', $color_picker_js);
+            wp_add_inline_script('hospoda-branding', $color_picker_js);
             $css3 = '.hs-branding{margin:20px 0;padding:20px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;max-width:960px}.hs-branding h2{margin-top:0}.hs-branding__logo{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.hs-branding__preview{width:160px;min-height:120px;border:1px dashed #ccd0d4;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden}.hs-branding__preview img{max-width:100%;height:auto;display:block}.hs-branding__preview span{color:#777;font-style:italic}.hs-branding textarea{max-width:100%}.hs-branding .description{margin-top:4px;color:#555}.hs-branding__controls{display:flex;flex-direction:column;gap:8px}.hs-branding__static{margin-top:24px;padding-top:16px;border-top:1px solid #d8d8d8}.hs-branding__static h2{margin:0 0 6px;font-size:18px}.hs-branding__menu-groups{margin-top:20px;padding:16px;border:1px solid #d9dde8;border-radius:8px;background:#f8fafc}.hs-branding__menu-groups.is-hidden{display:none}.hs-menu-groups{display:flex;flex-direction:column;gap:12px;margin-top:12px}.hs-menu-group{display:flex;flex-wrap:wrap;gap:12px;padding:12px;border:1px solid #e5e7eb;border-radius:6px;background:#fff}.hs-menu-group label{display:flex;flex-direction:column;flex:1 1 220px;font-weight:600;font-size:13px;color:#334155}.hs-menu-group label input[type=text]{margin-top:4px}.hs-menu-group-remove{margin-left:auto}.hs-menu-groups__actions{margin-top:10px}.hs-static-menu{display:flex;flex-direction:column;gap:14px;margin-top:12px}.hs-static-menu .row{display:flex;flex-wrap:wrap;gap:12px;padding:14px;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa}.hs-static-menu .row input.meal-autocomplete{flex:1 1 260px;min-width:220px}.hs-static-menu .row input.price{width:110px}.hs-static-menu .sides{display:flex;flex-wrap:wrap;gap:8px}.hs-static-menu .sides label{margin:0;padding:4px 10px;border:1px solid #d5d7db;border-radius:4px;background:#fff;font-size:13px}.hs-static-menu .remove-row{margin-left:auto}.hs-static-actions{margin-top:12px}';
             $css3 .= '.hs-branding__theme{margin-top:24px;padding-top:20px;border-top:1px solid #d8d8d8;display:flex;flex-direction:column;gap:20px}.hs-branding__theme-grid{display:grid;gap:18px}.hs-branding__theme-group{border:1px solid #e2e8f0;border-radius:8px;padding:16px 18px;background:#f9fafb;display:flex;flex-direction:column;gap:12px}.hs-branding__theme-group h3{margin:0;font-size:16px;color:#0f172a}.hs-branding__field{display:flex;flex-direction:column;gap:4px}.hs-branding__field label{font-weight:600;font-size:13px;color:#334155}.hs-branding__field input[type=text]{max-width:170px}.hs-branding__field input[type=number]{max-width:120px}.hs-branding__field select{max-width:200px}.hs-branding__field .description{margin:0;font-size:12px;color:#64748b}.hs-color-palette{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.hs-color-swatch{--hs-swatch-color:#000;width:34px;height:34px;padding:0;border-radius:4px;border:1px solid #cbd5e1;background:var(--hs-swatch-color);box-shadow:inset 0 0 0 1px rgba(255,255,255,.6);cursor:pointer;position:relative}.hs-color-swatch:hover{box-shadow:0 0 0 2px rgba(37,99,235,.4)}.hs-color-swatch.is-active{box-shadow:0 0 0 3px rgba(37,99,235,.8)}.hs-color-swatch:focus{outline:2px solid #2563eb;outline-offset:2px}';
             $css3 .= '@media(min-width:768px){.hs-branding__theme-grid{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}}';
@@ -1306,6 +1325,23 @@ JS;
         }
 
         return array_values($groups);
+    }
+
+    private function format_menu_group_price_display(string $price): string {
+        $price = trim($price);
+        if ($price === '') {
+            return '';
+        }
+
+        if (preg_match('/kč|czk|€|eur|usd|\$|£/iu', $price)) {
+            return $price;
+        }
+
+        if (!preg_match('/\d/u', $price)) {
+            return $price;
+        }
+
+        return rtrim($price) . ' Kč';
     }
 
     private function resolve_monday_for_date(string $date): ?string {
@@ -1863,6 +1899,7 @@ JS;
                       $label_text = strtoupper($group_key);
                   }
                   $price_text = isset($group['price']) ? (string)$group['price'] : '';
+                  $price_display = $this->format_menu_group_price_display($price_text);
 
                   $rows_for_group = $group_rows[$group_key] ?? [];
                   $output_rows = [];
@@ -1896,7 +1933,7 @@ JS;
                   <div class="hs-week-menu-group" data-group-key="<?php echo esc_attr($group_key); ?>">
                     <div class="hs-week-menu-group__header">
                       <span class="hs-week-menu-group__title"><?php echo esc_html($label_text); ?></span>
-                      <?php if ($price_text !== '') : ?><span class="hs-week-menu-group__price"><?php echo esc_html($price_text); ?></span><?php endif; ?>
+                      <?php if ($price_display !== '') : ?><span class="hs-week-menu-group__price"><?php echo esc_html($price_display); ?></span><?php endif; ?>
                     </div>
                     <div id="mains-<?php echo esc_attr($index . '-' . $group_key); ?>" class="hs-mains" data-include-price="0" data-has-sides="<?php echo $use_sides ? '1' : '0'; ?>" data-group-key="<?php echo esc_attr($group_key); ?>" data-next-subindex="<?php echo esc_attr($next_subindex); ?>">
                       <?php foreach ($output_rows as $row_meta) :
@@ -2720,8 +2757,9 @@ JS;
                     if ($label === '') {
                         $label = strtoupper($group_key);
                     }
-                    $price = isset($group['price']) ? (string)$group['price'] : '';
-                    echo '<h5 style="margin:.5em 0 0;">' . esc_html($label) . ($price !== '' ? ' — ' . esc_html($price) : '') . '</h5>';
+                    $price_raw = isset($group['price']) ? (string)$group['price'] : '';
+                    $price_label = $this->format_menu_group_price_display($price_raw);
+                    echo '<h5 style="margin:.5em 0 0;">' . esc_html($label) . ($price_label !== '' ? ' — ' . esc_html($price_label) : '') . '</h5>';
                     echo '<ul>';
                     foreach ($items as $row) {
                         if (!is_array($row)) {
@@ -2850,7 +2888,8 @@ JS;
                     if ($label === '') {
                         $label = strtoupper($group_key);
                     }
-                    $price_label = isset($group['price']) ? (string)$group['price'] : '';
+                    $price_raw = isset($group['price']) ? (string)$group['price'] : '';
+                    $price_label = $this->format_menu_group_price_display($price_raw);
                     echo '<div class="hsp-menu-group">';
                     echo '<div class="hsp-menu-group__title">'.esc_html($label);
                     if ($price_label !== '') {

@@ -103,7 +103,8 @@ class Week_Pdf_Exporter {
                     if ($heading === '') {
                         $heading = strtoupper($groupKey);
                     }
-                    $priceLabel = isset($group['price']) ? (string)$group['price'] : '';
+                    $priceLabelRaw = isset($group['price']) ? (string)$group['price'] : '';
+                    $priceLabel = $this->formatMenuGroupPrice($priceLabelRaw);
                     if ($priceLabel !== '') {
                         $heading .= ' — ' . $priceLabel;
                     }
@@ -460,6 +461,23 @@ class Week_Pdf_Exporter {
             return 'per_item';
         }
         return in_array($value, ['per_item', 'menu_groups'], true) ? $value : 'per_item';
+    }
+
+    private function formatMenuGroupPrice(string $price): string {
+        $price = trim($price);
+        if ($price === '') {
+            return '';
+        }
+
+        if (preg_match('/kč|czk|€|eur|usd|\$|£/iu', $price)) {
+            return $price;
+        }
+
+        if (!preg_match('/\d/u', $price)) {
+            return $price;
+        }
+
+        return rtrim($price) . ' Kč';
     }
 
     /**
