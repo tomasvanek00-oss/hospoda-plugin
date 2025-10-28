@@ -25,6 +25,7 @@ class Hospoda_Plugin {
     private $static_menu_cache = null;
     private $sides_cache = null;
     private $meal_terms_cache = [];
+    private $frontend_theme_cache = null;
 
     /**
      * Returns inline <style> tag for front‑end, printed only once per request.
@@ -33,50 +34,75 @@ class Hospoda_Plugin {
     private function inline_css_tag(){
         if ($this->inline_printed) return '';
         $this->inline_printed = true;
-        $css =
-        /* base layout */
-        '.hsp-root{font-size:16px;line-height:1.5}' .
-        '.hsp-root .hsp-week{display:grid;gap:24px;--hsp-gap:24px}' .
-        '.hsp-root .hsp-collapsed{margin:0 0 16px}' .
-        '.hsp-root .hsp-toggle{display:inline-block;padding:10px 16px;border:1px solid #ef6c00;border-radius:10px;background:#ef6c00;color:#fff;font-weight:700;letter-spacing:.2px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.06)}' .
-        '.hsp-root .hsp-toggle:hover{background:#e05f00;border-color:#e05f00}' .
-        '.hsp-root .hsp-toggle:focus{outline:2px solid #ffd7a6;outline-offset:2px}' .
-        '.hsp-root .hsp-toggle[aria-expanded="true"]{background:#444;border-color:#444}' .
-        '.hsp-root .hsp-hidden{display:none}' .
-        // --- week nav styles ---
-        '.hsp-root .hsp-week__nav{display:flex;gap:12px;align-items:center;justify-content:center;margin:0 0 16px}' .
-        '.hsp-root .hsp-week__nav .hsp-nav__btn, .hsp-root .hsp-week__nav .hsp-nav__btn[type=button]{display:inline-block;padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;text-decoration:none;color:#333;cursor:pointer}' .
-        '.hsp-root .hsp-week__nav .hsp-nav__btn:hover, .hsp-root .hsp-week__nav .hsp-nav__btn[type=button]:hover{background:#fafafa}' .
-        '.hsp-root .hsp-week__nav .hsp-nav__label{font-weight:600}' .
-        '.hsp-root .hsp-week__nav .hsp-nav__date{padding:6px 8px;border:1px solid #ddd;border-radius:6px}' .
-        '@media (min-width:960px){.hsp-root .hsp-week{grid-template-columns:1fr 1fr;justify-items:stretch}}' .
-        '@media (min-width:960px){.hsp-root .hsp-week > .hsp-day:last-child:nth-child(odd){grid-column:1/-1;justify-self:center;width:calc((100% - var(--hsp-gap))/2)}}' .
-        /* day card */
-        '.hsp-root .hsp-day{border:1px solid #e8e8e8;border-radius:12px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.03);overflow:hidden}' .
-        '.hsp-root .hsp-day__heading{margin:0;padding:12px 16px;border-bottom:1px solid #f0f0f0;font-weight:700;letter-spacing:.2px;background:#fafafa}' .
-        '.hsp-root .hsp-badge{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#eef5ff;color:#1f3a68;font-size:.85em;font-weight:600}' .
-        '.hsp-root .hsp-body{padding:0 16px 12px}' .
-        /* common grid for rows */
-        '.hsp-root .hsp-grid{display:grid;grid-template-columns:1fr auto;grid-template-areas:"title price" "sides price";align-items:baseline;gap:2px 8px;padding:8px 0;border-bottom:1px dashed #e6e6e6}' .
-        '.hsp-root .hsp-grid:last-child{border-bottom:0}' .
-        '.hsp-root .hsp-title{grid-area:title;font-weight:600}' .
-        '.hsp-root .hsp-sides{grid-area:sides;display:block;color:#7a7a7a;font-size:.9em;margin:2px 0 0}' .
-        '.hsp-root .hsp-price{grid-area:price;justify-self:end;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;color:#111}' .
-        '.hsp-root .hsp-menu-groups{display:grid;gap:18px;margin:24px 0 0}' .
-        '.hsp-root .hsp-menu-group{border:1px solid #f3d4b2;border-radius:12px;padding:16px 18px;background:#fff8ed;box-shadow:0 1px 2px rgba(0,0,0,.04)}' .
-        '.hsp-root .hsp-menu-group__title{display:flex;justify-content:space-between;align-items:baseline;font-size:1.05em;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#b45309;margin:0 0 6px}' .
-        '.hsp-root .hsp-menu-group__price{margin-left:12px;font-weight:700;color:#ef6c00;font-size:.95em}' .
-        '.hsp-root .hsp-menu-group__list{list-style:none;margin:0;padding:0;display:grid;gap:6px}' .
-        '.hsp-root .hsp-menu-group__item{display:flex;flex-direction:column;gap:2px}' .
-        /* soup as full grid row */
-        '.hsp-root .hsp-soup{margin:0}' .
-        /* meals list */
-        '.hsp-root .hsp-mains{list-style:none;margin:0;padding:0}' .
-        '.hsp-root .hsp-item{list-style:none;padding:0}' .
-        '.hsp-root .hsp-static{margin:28px 0 0;padding:18px 20px;border:1px solid #f3d4b2;border-radius:12px;background:#fff7ed;box-shadow:0 1px 3px rgba(0,0,0,.04)}' .
-        '.hsp-root .hsp-static__title{margin:0 0 10px;font-size:1.05em;letter-spacing:.08em;text-transform:uppercase;color:#b45309;font-weight:700}' .
-        '.hsp-root .hsp-static__list{list-style:none;margin:0;padding:0;color:#4b5563;font-size:.97em;display:grid;gap:8px}' .
-        '.hsp-root .hsp-static__list li{margin:0}' ;
+        $theme = $this->get_frontend_theme_settings();
+        $week = $theme['week'];
+        $static = $theme['static'];
+        $typo = $theme['typography'];
+
+        $base_size = isset($typo['base_size']) ? (int) $typo['base_size'] : 16;
+        if ($base_size < 12) {
+            $base_size = 12;
+        }
+        $title_weight = $this->normalize_title_weight((string)($typo['title_weight'] ?? '600'));
+
+        $week_bullet_symbol = $this->get_bullet_symbol($typo['week_bullet'] ?? 'none');
+        $week_bullet_display = $week_bullet_symbol !== '' ? 'inline-block' : 'none';
+        $week_bullet_offset = $week_bullet_symbol !== '' ? '1.6em' : '0';
+
+        $group_bullet_symbol = $this->get_bullet_symbol($typo['group_bullet'] ?? 'none');
+        $group_bullet_display = $group_bullet_symbol !== '' ? 'inline-block' : 'none';
+        $group_bullet_offset = $group_bullet_symbol !== '' ? '1.5em' : '0';
+
+        $static_bullet_symbol = $this->get_bullet_symbol($typo['static_bullet'] ?? 'none');
+        $static_bullet_display = $static_bullet_symbol !== '' ? 'inline-block' : 'none';
+        $static_bullet_offset = $static_bullet_symbol !== '' ? '1.5em' : '0';
+
+        $css = '';
+        $css .= '.hsp-root{font-size:'.$base_size.'px;line-height:1.5;color:'.$week['body_text'].';';
+        $css .= '--hsp-week-bullet:"'.$week_bullet_symbol.'";--hsp-week-bullet-display:'.$week_bullet_display.';--hsp-week-bullet-offset:'.$week_bullet_offset.';--hsp-week-bullet-color:'.$week['bullet_color'].';';
+        $css .= '--hsp-group-bullet:"'.$group_bullet_symbol.'";--hsp-group-bullet-display:'.$group_bullet_display.';--hsp-group-bullet-offset:'.$group_bullet_offset.';--hsp-group-bullet-color:'.$week['group_bullet_color'].';';
+        $css .= '--hsp-static-bullet:"'.$static_bullet_symbol.'";--hsp-static-bullet-display:'.$static_bullet_display.';--hsp-static-bullet-offset:'.$static_bullet_offset.';--hsp-static-bullet-color:'.$static['bullet_color'].';}';
+        $css .= '.hsp-root .hsp-week{display:grid;gap:24px;--hsp-gap:24px}';
+        $css .= '.hsp-root .hsp-collapsed{margin:0 0 16px}';
+        $css .= '.hsp-root .hsp-toggle{display:inline-block;padding:10px 16px;border:1px solid '.$week['group_price'].';border-radius:10px;background:'.$week['group_price'].';color:#fff;font-weight:700;letter-spacing:.2px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.06)}';
+        $css .= '.hsp-root .hsp-toggle:hover{background:'.$week['group_price'].';border-color:'.$week['group_price'].';opacity:.92}';
+        $css .= '.hsp-root .hsp-toggle:focus{outline:2px solid rgba(255,215,166,.8);outline-offset:2px}';
+        $css .= '.hsp-root .hsp-toggle[aria-expanded="true"]{background:#444;border-color:#444}';
+        $css .= '.hsp-root .hsp-hidden{display:none}';
+        $css .= '.hsp-root .hsp-week__nav{display:flex;gap:12px;align-items:center;justify-content:center;margin:0 0 16px}';
+        $css .= '.hsp-root .hsp-week__nav .hsp-nav__btn, .hsp-root .hsp-week__nav .hsp-nav__btn[type=button]{display:inline-block;padding:6px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;text-decoration:none;color:'.$week['body_text'].';cursor:pointer}';
+        $css .= '.hsp-root .hsp-week__nav .hsp-nav__btn:hover, .hsp-root .hsp-week__nav .hsp-nav__btn[type=button]:hover{background:#fafafa}';
+        $css .= '.hsp-root .hsp-week__nav .hsp-nav__label{font-weight:600}';
+        $css .= '.hsp-root .hsp-week__nav .hsp-nav__date{padding:6px 8px;border:1px solid #ddd;border-radius:6px}';
+        $css .= '@media (min-width:960px){.hsp-root .hsp-week{grid-template-columns:1fr 1fr;justify-items:stretch}}';
+        $css .= '@media (min-width:960px){.hsp-root .hsp-week > .hsp-day:last-child:nth-child(odd){grid-column:1/-1;justify-self:center;width:calc((100% - var(--hsp-gap))/2)}}';
+        $css .= '.hsp-root .hsp-day{border:1px solid '.$week['card_border'].';border-radius:12px;background:'.$week['card_bg'].';box-shadow:0 1px 2px rgba(0,0,0,.03);overflow:hidden}';
+        $css .= '.hsp-root .hsp-day__heading{margin:0;padding:12px 16px;border-bottom:1px solid '.$week['card_border'].';font-weight:700;letter-spacing:.2px;background:'.$week['heading_bg'].';color:'.$week['heading_text'].'}';
+        $css .= '.hsp-root .hsp-badge{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:'.$week['badge_bg'].';color:'.$week['badge_text'].';font-size:.85em;font-weight:600}';
+        $css .= '.hsp-root .hsp-body{padding:0 16px 12px;color:'.$week['body_text'].'}';
+        $css .= '.hsp-root .hsp-grid{display:grid;grid-template-columns:1fr auto;grid-template-areas:"title price" "sides price";align-items:baseline;gap:2px 8px;padding:8px 0;border-bottom:1px dashed '.$week['card_border'].'}';
+        $css .= '.hsp-root .hsp-grid:last-child{border-bottom:0}';
+        $css .= '.hsp-root .hsp-day .hsp-item{list-style:none;padding:0;position:relative;padding-left:var(--hsp-week-bullet-offset)}';
+        $css .= '.hsp-root .hsp-day .hsp-item::before{content:var(--hsp-week-bullet);display:var(--hsp-week-bullet-display);position:absolute;left:0;top:1.1em;transform:translateY(-50%);color:var(--hsp-week-bullet-color);font-weight:700;font-size:.9em;line-height:1}';
+        $css .= '.hsp-root .hsp-title{grid-area:title;font-weight:'.$title_weight.';color:'.$week['body_text'].'}';
+        $css .= '.hsp-root .hsp-sides{grid-area:sides;display:block;color:'.$week['sides_text'].';font-size:.9em;margin:2px 0 0}';
+        $css .= '.hsp-root .hsp-price{grid-area:price;justify-self:end;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;color:'.$week['price_text'].'}';
+        $css .= '.hsp-root .hsp-menu-groups{display:grid;gap:18px;margin:24px 0 0}';
+        $css .= '.hsp-root .hsp-menu-group{border:1px solid '.$week['group_border'].';border-radius:12px;padding:16px 18px;background:'.$week['group_bg'].';box-shadow:0 1px 2px rgba(0,0,0,.04)}';
+        $css .= '.hsp-root .hsp-menu-group__title{display:flex;justify-content:space-between;align-items:baseline;font-size:1.05em;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:'.$week['group_title'].';margin:0 0 6px}';
+        $css .= '.hsp-root .hsp-menu-group__price{margin-left:12px;font-weight:700;color:'.$week['group_price'].';font-size:.95em}';
+        $css .= '.hsp-root .hsp-menu-group__list{list-style:none;margin:0;padding:0;display:grid;gap:6px;color:'.$week['body_text'].'}';
+        $css .= '.hsp-root .hsp-menu-group__item{display:flex;flex-direction:column;gap:2px;position:relative;padding-left:var(--hsp-group-bullet-offset)}';
+        $css .= '.hsp-root .hsp-menu-group__item::before{content:var(--hsp-group-bullet);display:var(--hsp-group-bullet-display);position:absolute;left:0;top:.7em;transform:translateY(-50%);color:var(--hsp-group-bullet-color);font-weight:700;font-size:.85em;line-height:1}';
+        $css .= '.hsp-root .hsp-soup{margin:0}';
+        $css .= '.hsp-root .hsp-mains{list-style:none;margin:0;padding:0}';
+        $css .= '.hsp-root .hsp-static{margin:28px 0 0;padding:18px 20px;border:1px solid '.$static['border'].';border-radius:12px;background:'.$static['background'].';box-shadow:0 1px 3px rgba(0,0,0,.04);color:'.$static['text'].'}';
+        $css .= '.hsp-root .hsp-static__title{margin:0 0 10px;font-size:1.05em;letter-spacing:.08em;text-transform:uppercase;color:'.$static['title'].';font-weight:700}';
+        $css .= '.hsp-root .hsp-static__list{list-style:none;margin:0;padding:0;color:'.$static['text'].';font-size:.97em;display:grid;gap:8px}';
+        $css .= '.hsp-root .hsp-static__list li{margin:0}';
+        $css .= '.hsp-root .hsp-static .hsp-item{position:relative;padding-left:var(--hsp-static-bullet-offset)}';
+        $css .= '.hsp-root .hsp-static .hsp-item::before{content:var(--hsp-static-bullet);display:var(--hsp-static-bullet-display);position:absolute;left:0;top:.95em;transform:translateY(-50%);color:var(--hsp-static-bullet-color);font-weight:700;font-size:.85em;line-height:1}';
+        $css .= '.hsp-root .hsp-static .hsp-price{color:'.$static['price'].'}';
         return "\n<style id=\"hospoda-frontend-inline\">$css</style>\n";
     }
 
@@ -107,6 +133,14 @@ class Hospoda_Plugin {
      * Enqueue frontend CSS
      */
     public function frontend_assets(){
+        $theme = $this->get_frontend_theme_settings();
+        $week = $theme['week'];
+        $typo = $theme['typography'];
+        $title_weight = $this->normalize_title_weight((string)($typo['title_weight'] ?? '600'));
+        $week_sides = $week['sides_text'];
+        $week_price = $week['price_text'];
+        $week_body = $week['body_text'];
+
         $candidates = [
             'assets/css/style.css', // preferred
             'assets/style.css',     // alternative
@@ -121,39 +155,45 @@ class Hospoda_Plugin {
                 // High-specificity safeguards so theme styles (e.g., Divi) don't override our layout
                 $override = '.hsp-root .hsp-mains{list-style:none!important;margin:0!important;padding:0!important}'
                           . '.hsp-root .hsp-item{display:grid!important;grid-template-columns:1fr auto!important;align-items:start!important}'
-                          . '.hsp-root .hsp-title{font-weight:500}'
-                          . '.hsp-root .hsp-sides{color:#777}'
-                          . '.hsp-root .hsp-price{margin-left:1rem;white-space:nowrap;font-variant-numeric:tabular-nums}';
+                          . '.hsp-root .hsp-title{font-weight:'.$title_weight.';color:'.$week_body.'}'
+                          . '.hsp-root .hsp-sides{color:'.$week_sides.'}'
+                          . '.hsp-root .hsp-price{margin-left:1rem;white-space:nowrap;font-variant-numeric:tabular-nums;color:'.$week_price.'}';
                 \wp_add_inline_style('hospoda-frontend', $override);
                 $found = true;
                 break;
             }
         }
         if (!$found) {
-            $fallback = '.hsp-week{display:grid;gap:2rem}.hsp-mains{list-style:none;margin:0;padding:0;display:grid;gap:1rem}.hsp-item{display:grid;gap:1rem;grid-template-columns:1fr auto;align-items:start}.hsp-price{white-space:nowrap;font-variant-numeric:tabular-nums}.hsp-sides{color:#7a7a7a}.hsp-menu-groups{display:grid;gap:18px;margin:24px 0 0}.hsp-menu-group{border:1px solid #f3d4b2;border-radius:12px;padding:16px 18px;background:#fff8ed}.hsp-menu-group__title{display:flex;justify-content:space-between;align-items:baseline;font-size:1.05em;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#b45309;margin:0 0 6px}.hsp-menu-group__price{margin-left:12px;font-weight:700;color:#ef6c00;font-size:.95em}.hsp-menu-group__list{list-style:none;margin:0;padding:0;display:grid;gap:6px}.hsp-menu-group__item{display:flex;flex-direction:column;gap:2px}.hsp-static{margin:24px 0 0;padding:18px 20px;border:1px solid #f3d4b2;border-radius:12px;background:#fff7ed}.hsp-static__title{margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:#b45309}.hsp-static__list{list-style:none;margin:0;padding:0;display:grid;gap:8px}.hsp-static__list li{margin:0}';
+            $fallback = '.hsp-week{display:grid;gap:2rem}.hsp-mains{list-style:none;margin:0;padding:0;display:grid;gap:1rem}.hsp-item{display:grid;gap:1rem;grid-template-columns:1fr auto;align-items:start}.hsp-price{white-space:nowrap;font-variant-numeric:tabular-nums;color:'.$week_price.'}.hsp-sides{color:'.$week_sides.'}.hsp-menu-groups{display:grid;gap:18px;margin:24px 0 0}.hsp-menu-group{border:1px solid '.$week['group_border'].';border-radius:12px;padding:16px 18px;background:'.$week['group_bg'].'}.hsp-menu-group__title{display:flex;justify-content:space-between;align-items:baseline;font-size:1.05em;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:'.$week['group_title'].';margin:0 0 6px}.hsp-menu-group__price{margin-left:12px;font-weight:700;color:'.$week['group_price'].';font-size:.95em}.hsp-menu-group__list{list-style:none;margin:0;padding:0;display:grid;gap:6px}.hsp-menu-group__item{display:flex;flex-direction:column;gap:2px}.hsp-static{margin:24px 0 0;padding:18px 20px;border:1px solid '.$theme['static']['border'].';border-radius:12px;background:'.$theme['static']['background'].'}.hsp-static__title{margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:'.$theme['static']['title'].'}.hsp-static__list{list-style:none;margin:0;padding:0;display:grid;gap:8px;color:'.$theme['static']['text'].'}.hsp-static__list li{margin:0}';
             \wp_register_style('hospoda-frontend', false, [], VERSION);
             \wp_enqueue_style('hospoda-frontend');
             \wp_add_inline_style('hospoda-frontend', $fallback);
             $override = '.hsp-root .hsp-mains{list-style:none!important;margin:0!important;padding:0!important}'
                       . '.hsp-root .hsp-item{display:grid!important;grid-template-columns:1fr auto!important;align-items:start!important}'
-                      . '.hsp-root .hsp-title{font-weight:500}'
-                      . '.hsp-root .hsp-sides{color:#777}'
-                      . '.hsp-root .hsp-price{margin-left:1rem;white-space:nowrap;font-variant-numeric:tabular-nums}';
+                      . '.hsp-root .hsp-title{font-weight:'.$title_weight.';color:'.$week_body.'}'
+                      . '.hsp-root .hsp-sides{color:'.$week_sides.'}'
+                      . '.hsp-root .hsp-price{margin-left:1rem;white-space:nowrap;font-variant-numeric:tabular-nums;color:'.$week_price.'}';
             \wp_add_inline_style('hospoda-frontend', $override);
         }
     }
 
     public function frontend_inline_probe(){
         // Vytiskneme drobný korektivní CSS s vysokou prioritou tak, aby přebil Divi
+        $theme = $this->get_frontend_theme_settings();
+        $week = $theme['week'];
+        $static = $theme['static'];
+        $typo = $theme['typography'];
+        $title_weight = $this->normalize_title_weight((string)($typo['title_weight'] ?? '600'));
+
         echo "\n<style id=\"hospoda-frontend-probe\">\n".
              ".hsp-week ul.hsp-mains{list-style:none!important;margin:0!important;padding:0!important}\n".
              ".hsp-week .hsp-item{display:grid!important;grid-template-columns:1fr auto!important;align-items:start!important}\n".
-             ".hsp-week .hsp-title{font-weight:600}\n".
-             ".hsp-week .hsp-sides{color:#7a7a7a;font-size:.9em;display:block}\n".
-             ".hsp-week .hsp-price{margin-left:1rem;white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}\n".
-             ".hsp-root .hsp-static{margin-top:24px;padding:18px 20px;border:1px solid #f3d4b2;border-radius:12px;background:#fff7ed}\n".
-             ".hsp-root .hsp-static__title{margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:#b45309}\n".
-             ".hsp-root .hsp-static__list{list-style:none;margin:0;padding:0;display:grid;gap:8px}\n".
+             ".hsp-week .hsp-title{font-weight:{$title_weight};color:{$week['body_text']}}\n".
+             ".hsp-week .hsp-sides{color:{$week['sides_text']};font-size:.9em;display:block}\n".
+             ".hsp-week .hsp-price{margin-left:1rem;white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right;color:{$week['price_text']}}\n".
+             ".hsp-root .hsp-static{margin-top:24px;padding:18px 20px;border:1px solid {$static['border']};border-radius:12px;background:{$static['background']}}\n".
+             ".hsp-root .hsp-static__title{margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:{$static['title']}}\n".
+             ".hsp-root .hsp-static__list{list-style:none;margin:0;padding:0;display:grid;gap:8px;color:{$static['text']}}\n".
              "</style>\n";
     }
 
@@ -682,7 +722,12 @@ JS;
         }
 
         if ($is_branding_page) {
+            \wp_enqueue_style('wp-color-picker');
+            \wp_enqueue_script('wp-color-picker');
+            \wp_add_inline_script('wp-color-picker', 'jQuery(function($){$(".hs-color-field").wpColorPicker();});');
             $css3 = '.hs-branding{margin:20px 0;padding:20px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;max-width:960px}.hs-branding h2{margin-top:0}.hs-branding__logo{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.hs-branding__preview{width:160px;min-height:120px;border:1px dashed #ccd0d4;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden}.hs-branding__preview img{max-width:100%;height:auto;display:block}.hs-branding__preview span{color:#777;font-style:italic}.hs-branding textarea{max-width:100%}.hs-branding .description{margin-top:4px;color:#555}.hs-branding__controls{display:flex;flex-direction:column;gap:8px}.hs-branding__static{margin-top:24px;padding-top:16px;border-top:1px solid #d8d8d8}.hs-branding__static h2{margin:0 0 6px;font-size:18px}.hs-branding__menu-groups{margin-top:20px;padding:16px;border:1px solid #d9dde8;border-radius:8px;background:#f8fafc}.hs-branding__menu-groups.is-hidden{display:none}.hs-menu-groups{display:flex;flex-direction:column;gap:12px;margin-top:12px}.hs-menu-group{display:flex;flex-wrap:wrap;gap:12px;padding:12px;border:1px solid #e5e7eb;border-radius:6px;background:#fff}.hs-menu-group label{display:flex;flex-direction:column;flex:1 1 220px;font-weight:600;font-size:13px;color:#334155}.hs-menu-group label input[type=text]{margin-top:4px}.hs-menu-group-remove{margin-left:auto}.hs-menu-groups__actions{margin-top:10px}.hs-static-menu{display:flex;flex-direction:column;gap:14px;margin-top:12px}.hs-static-menu .row{display:flex;flex-wrap:wrap;gap:12px;padding:14px;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa}.hs-static-menu .row input.meal-autocomplete{flex:1 1 260px;min-width:220px}.hs-static-menu .row input.price{width:110px}.hs-static-menu .sides{display:flex;flex-wrap:wrap;gap:8px}.hs-static-menu .sides label{margin:0;padding:4px 10px;border:1px solid #d5d7db;border-radius:4px;background:#fff;font-size:13px}.hs-static-menu .remove-row{margin-left:auto}.hs-static-actions{margin-top:12px}';
+            $css3 .= '.hs-branding__theme{margin-top:24px;padding-top:20px;border-top:1px solid #d8d8d8;display:flex;flex-direction:column;gap:20px}.hs-branding__theme-grid{display:grid;gap:18px}.hs-branding__theme-group{border:1px solid #e2e8f0;border-radius:8px;padding:16px 18px;background:#f9fafb;display:flex;flex-direction:column;gap:12px}.hs-branding__theme-group h3{margin:0;font-size:16px;color:#0f172a}.hs-branding__field{display:flex;flex-direction:column;gap:4px}.hs-branding__field label{font-weight:600;font-size:13px;color:#334155}.hs-branding__field input[type=text]{max-width:170px}.hs-branding__field input[type=number]{max-width:120px}.hs-branding__field select{max-width:200px}.hs-branding__field .description{margin:0;font-size:12px;color:#64748b}';
+            $css3 .= '@media(min-width:768px){.hs-branding__theme-grid{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}}';
             wp_add_inline_style('hospoda-admin', $css3);
         }
     }
@@ -777,6 +822,130 @@ JS;
         $this->static_menu_cache = $items;
 
         return $items;
+    }
+
+    private function get_frontend_theme_defaults(): array {
+        return [
+            'week' => [
+                'card_bg'            => '#ffffff',
+                'card_border'        => '#e8e8e8',
+                'heading_bg'         => '#fafafa',
+                'heading_text'       => '#0f172a',
+                'body_text'          => '#111111',
+                'sides_text'         => '#7a7a7a',
+                'price_text'         => '#111111',
+                'badge_bg'           => '#eef5ff',
+                'badge_text'         => '#1f3a68',
+                'group_bg'           => '#fff8ed',
+                'group_border'       => '#f3d4b2',
+                'group_title'        => '#b45309',
+                'group_price'        => '#ef6c00',
+                'bullet_color'       => '#ef6c00',
+                'group_bullet_color' => '#b45309',
+            ],
+            'static' => [
+                'background'   => '#fff7ed',
+                'border'       => '#f3d4b2',
+                'title'        => '#b45309',
+                'text'         => '#4b5563',
+                'price'        => '#111111',
+                'bullet_color' => '#b45309',
+            ],
+            'typography' => [
+                'base_size'     => 16,
+                'title_weight'  => '600',
+                'week_bullet'   => 'none',
+                'group_bullet'  => 'none',
+                'static_bullet' => 'none',
+            ],
+        ];
+    }
+
+    private function get_frontend_theme_settings(): array {
+        if (is_array($this->frontend_theme_cache)) {
+            return $this->frontend_theme_cache;
+        }
+
+        $stored = get_option('hsp_frontend_theme', []);
+        if (!is_array($stored)) {
+            $stored = [];
+        }
+
+        $settings = $this->sanitize_frontend_theme_settings($stored);
+        $this->frontend_theme_cache = $settings;
+
+        return $settings;
+    }
+
+    /**
+     * @param mixed $input
+     */
+    private function sanitize_frontend_theme_settings($input): array {
+        $defaults = $this->get_frontend_theme_defaults();
+        $output = $defaults;
+
+        if (is_array($input)) {
+            if (isset($input['week']) && is_array($input['week'])) {
+                foreach ($defaults['week'] as $key => $fallback) {
+                    $value = $input['week'][$key] ?? $fallback;
+                    $output['week'][$key] = $this->sanitize_theme_color($value, $fallback);
+                }
+            }
+            if (isset($input['static']) && is_array($input['static'])) {
+                foreach ($defaults['static'] as $key => $fallback) {
+                    $value = $input['static'][$key] ?? $fallback;
+                    $output['static'][$key] = $this->sanitize_theme_color($value, $fallback);
+                }
+            }
+            if (isset($input['typography']) && is_array($input['typography'])) {
+                $typo = $input['typography'];
+                $size = isset($typo['base_size']) ? intval($typo['base_size']) : $defaults['typography']['base_size'];
+                $output['typography']['base_size'] = max(12, min(24, $size));
+
+                $output['typography']['title_weight'] = $this->normalize_title_weight($typo['title_weight'] ?? $defaults['typography']['title_weight']);
+                $output['typography']['week_bullet'] = $this->normalize_bullet_style($typo['week_bullet'] ?? $defaults['typography']['week_bullet']);
+                $output['typography']['group_bullet'] = $this->normalize_bullet_style($typo['group_bullet'] ?? $defaults['typography']['group_bullet']);
+                $output['typography']['static_bullet'] = $this->normalize_bullet_style($typo['static_bullet'] ?? $defaults['typography']['static_bullet']);
+            }
+        }
+
+        return $output;
+    }
+
+    private function sanitize_theme_color($value, string $fallback): string {
+        $value = is_string($value) ? trim($value) : '';
+        $sanitized = $value !== '' ? \sanitize_hex_color($value) : '';
+        if (!$sanitized) {
+            return $fallback;
+        }
+        return $sanitized;
+    }
+
+    private function normalize_bullet_style(string $value): string {
+        $value = strtolower(\sanitize_key($value));
+        $allowed = ['none', 'disc', 'dash', 'square', 'arrow'];
+        return in_array($value, $allowed, true) ? $value : 'none';
+    }
+
+    private function normalize_title_weight(string $value): string {
+        $value = trim($value);
+        $allowed = ['400', '500', '600', '700'];
+        return in_array($value, $allowed, true) ? $value : '600';
+    }
+
+    private function get_bullet_symbol(string $style): string {
+        switch ($style) {
+            case 'disc':
+                return '\\2022';
+            case 'dash':
+                return '\\2013';
+            case 'square':
+                return '\\25AA';
+            case 'arrow':
+                return '\\203A';
+            default:
+                return '';
+        }
     }
 
     private function get_menu_preferences(): array {
@@ -1833,6 +2002,51 @@ JS;
         }
         $sides_data = $this->get_sides_data();
         $sides_terms = $sides_data['terms'];
+
+        $frontend_theme = $this->get_frontend_theme_settings();
+        $theme_defaults = $this->get_frontend_theme_defaults();
+        $week_theme = $frontend_theme['week'];
+        $static_theme = $frontend_theme['static'];
+        $typo_theme = $frontend_theme['typography'];
+        $week_color_fields = [
+            'card_bg'            => ['label' => 'Pozadí karty dne'],
+            'card_border'        => ['label' => 'Rámeček dne'],
+            'heading_bg'         => ['label' => 'Pozadí záhlaví'],
+            'heading_text'       => ['label' => 'Barva textu záhlaví'],
+            'body_text'          => ['label' => 'Základní text jídel'],
+            'sides_text'         => ['label' => 'Text příloh'],
+            'price_text'         => ['label' => 'Barva ceny jídel'],
+            'badge_bg'           => ['label' => 'Pozadí odznaku „Dnes“'],
+            'badge_text'         => ['label' => 'Text odznaku „Dnes“'],
+            'group_bg'           => ['label' => 'Pozadí menu skupin'],
+            'group_border'       => ['label' => 'Rámeček menu skupin'],
+            'group_title'        => ['label' => 'Nadpis menu skupiny'],
+            'group_price'        => ['label' => 'Barva ceny menu'],
+            'bullet_color'       => ['label' => 'Odrážky denních jídel', 'description' => 'Použije se, pokud jsou odrážky zapnuté.'],
+            'group_bullet_color' => ['label' => 'Odrážky v menu skupinách'],
+        ];
+        $static_color_fields = [
+            'background'   => ['label' => 'Pozadí bloku'],
+            'border'       => ['label' => 'Rámeček bloku'],
+            'title'        => ['label' => 'Nadpis bloku'],
+            'text'         => ['label' => 'Text položek'],
+            'price'        => ['label' => 'Barva ceny'],
+            'bullet_color' => ['label' => 'Odrážky položek'],
+        ];
+        $bullet_options = [
+            'none'   => 'Bez odrážek',
+            'disc'   => 'Tečka',
+            'dash'   => 'Pomlčka',
+            'square' => 'Čtvereček',
+            'arrow'  => 'Šipka',
+        ];
+        $weight_options = [
+            '500' => 'Střední (500)',
+            '600' => 'Polotučné (600)',
+            '700' => 'Tučné (700)',
+            '400' => 'Normální (400)',
+        ];
+        $base_size_value = isset($typo_theme['base_size']) ? (int)$typo_theme['base_size'] : 16;
         $sides_map = $sides_data['map'];
 
         $pricing_mode = $this->get_pricing_mode();
@@ -2085,6 +2299,84 @@ JS;
               <p class="hs-menu-groups__actions"><button type="button" class="button" id="hs-menu-groups-add">Přidat menu</button></p>
             </div>
           </fieldset>
+          <fieldset class="hs-branding__theme">
+            <legend><strong>Vzhled webového menu</strong></legend>
+            <p class="description">Nastavte barvy a styl prvků, které se zobrazují ve veřejném výpisu jídelního lístku.</p>
+            <div class="hs-branding__theme-grid">
+              <div class="hs-branding__theme-group">
+                <h3>Týdenní nabídka</h3>
+                <?php foreach ($week_color_fields as $key => $meta) :
+                    $field_id = 'hs-theme-week-' . $key;
+                    $value = isset($week_theme[$key]) ? $week_theme[$key] : ($theme_defaults['week'][$key] ?? '');
+                    $default = $theme_defaults['week'][$key] ?? '';
+                    ?>
+                    <div class="hs-branding__field">
+                      <label for="<?php echo esc_attr($field_id); ?>"><?php echo esc_html($meta['label']); ?></label>
+                      <input type="text" class="hs-color-field" id="<?php echo esc_attr($field_id); ?>" name="frontend_theme[week][<?php echo esc_attr($key); ?>]" value="<?php echo esc_attr($value); ?>" data-default-color="<?php echo esc_attr($default); ?>">
+                      <?php if (!empty($meta['description'])) : ?>
+                        <span class="description"><?php echo esc_html($meta['description']); ?></span>
+                      <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+              </div>
+              <div class="hs-branding__theme-group">
+                <h3>Stálá nabídka</h3>
+                <?php foreach ($static_color_fields as $key => $meta) :
+                    $field_id = 'hs-theme-static-' . $key;
+                    $value = isset($static_theme[$key]) ? $static_theme[$key] : ($theme_defaults['static'][$key] ?? '');
+                    $default = $theme_defaults['static'][$key] ?? '';
+                    ?>
+                    <div class="hs-branding__field">
+                      <label for="<?php echo esc_attr($field_id); ?>"><?php echo esc_html($meta['label']); ?></label>
+                      <input type="text" class="hs-color-field" id="<?php echo esc_attr($field_id); ?>" name="frontend_theme[static][<?php echo esc_attr($key); ?>]" value="<?php echo esc_attr($value); ?>" data-default-color="<?php echo esc_attr($default); ?>">
+                      <?php if (!empty($meta['description'])) : ?>
+                        <span class="description"><?php echo esc_html($meta['description']); ?></span>
+                      <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+              </div>
+              <div class="hs-branding__theme-group">
+                <h3>Typografie a odrážky</h3>
+                <div class="hs-branding__field">
+                  <label for="hs-theme-base-size">Základní velikost písma</label>
+                  <input type="number" id="hs-theme-base-size" name="frontend_theme[typography][base_size]" value="<?php echo esc_attr($base_size_value); ?>" min="12" max="24" step="1">
+                  <span class="description">Velikost v pixelech pro celé zobrazení menu.</span>
+                </div>
+                <div class="hs-branding__field">
+                  <label for="hs-theme-title-weight">Tloušťka názvů jídel</label>
+                  <select id="hs-theme-title-weight" name="frontend_theme[typography][title_weight]">
+                    <?php foreach ($weight_options as $value => $label) : ?>
+                      <option value="<?php echo esc_attr($value); ?>" <?php selected($typo_theme['title_weight'], $value); ?>><?php echo esc_html($label); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div class="hs-branding__field">
+                  <label for="hs-theme-week-bullet">Odrážky u denního menu</label>
+                  <select id="hs-theme-week-bullet" name="frontend_theme[typography][week_bullet]">
+                    <?php foreach ($bullet_options as $value => $label) : ?>
+                      <option value="<?php echo esc_attr($value); ?>" <?php selected($typo_theme['week_bullet'], $value); ?>><?php echo esc_html($label); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div class="hs-branding__field">
+                  <label for="hs-theme-group-bullet">Odrážky v menu skupinách</label>
+                  <select id="hs-theme-group-bullet" name="frontend_theme[typography][group_bullet]">
+                    <?php foreach ($bullet_options as $value => $label) : ?>
+                      <option value="<?php echo esc_attr($value); ?>" <?php selected($typo_theme['group_bullet'], $value); ?>><?php echo esc_html($label); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div class="hs-branding__field">
+                  <label for="hs-theme-static-bullet">Odrážky ve stálé nabídce</label>
+                  <select id="hs-theme-static-bullet" name="frontend_theme[typography][static_bullet]">
+                    <?php foreach ($bullet_options as $value => $label) : ?>
+                      <option value="<?php echo esc_attr($value); ?>" <?php selected($typo_theme['static_bullet'], $value); ?>><?php echo esc_html($label); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </fieldset>
           <p>
             <button type="submit" class="button button-primary">Uložit nastavení</button>
             <a class="button button-secondary" href="<?php echo esc_url(admin_url('admin.php?page=hospoda-week')); ?>">Zpět na týdenní menu</a>
@@ -2244,6 +2536,11 @@ JS;
         update_option('hsp_pdf_branding', $data, false);
         $this->static_menu_cache = null;
         $this->meal_terms_cache = [];
+
+        $theme_input = isset($_POST['frontend_theme']) && is_array($_POST['frontend_theme']) ? wp_unslash($_POST['frontend_theme']) : [];
+        $theme_settings = $this->sanitize_frontend_theme_settings($theme_input);
+        update_option('hsp_frontend_theme', $theme_settings, false);
+        $this->frontend_theme_cache = null;
 
         $raw_groups = isset($_POST['menu_groups']) && is_array($_POST['menu_groups']) ? wp_unslash($_POST['menu_groups']) : [];
         $preferences = [
