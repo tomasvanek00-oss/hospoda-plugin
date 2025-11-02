@@ -298,7 +298,7 @@ class Hospoda_Plugin {
      */
     public function admin_assets($hook) {
         $is_week_page = ($hook === 'toplevel_page_hospoda-week');
-        $is_branding_page = ($hook === 'hospoda-week_page_hospoda-week-branding');
+        $is_branding_page = (strpos((string) $hook, 'hospoda-week-branding') !== false);
         $needs_autocomplete = (strpos((string)$hook, 'hospoda-week') !== false);
 
         if (!wp_style_is('hospoda-admin', 'registered')) {
@@ -772,9 +772,17 @@ JS;
 
         if ($is_branding_page) {
             \wp_enqueue_style('wp-color-picker');
-            if (!wp_script_is('hospoda-branding', 'registered')) {
-                wp_register_script('hospoda-branding', plugins_url('assets/js/branding.js', __FILE__), ['jquery', 'wp-color-picker'], VERSION, true);
-            }
+            \wp_enqueue_script('wp-color-picker');
+
+            $branding_js = plugin_dir_path(__FILE__) . 'assets/js/branding.js';
+            $branding_ver = file_exists($branding_js) ? filemtime($branding_js) : VERSION;
+            wp_register_script(
+                'hospoda-branding',
+                plugins_url('assets/js/branding.js', __FILE__),
+                ['jquery', 'wp-color-picker'],
+                $branding_ver,
+                true
+            );
             wp_enqueue_script('hospoda-branding');
             $css3 = '.hs-branding{margin:20px 0;padding:20px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;max-width:960px}.hs-branding h2{margin-top:0}.hs-branding__logo{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.hs-branding__preview{width:160px;min-height:120px;border:1px dashed #ccd0d4;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden}.hs-branding__preview img{max-width:100%;height:auto;display:block}.hs-branding__preview span{color:#777;font-style:italic}.hs-branding textarea{max-width:100%}.hs-branding .description{margin-top:4px;color:#555}.hs-branding__controls{display:flex;flex-direction:column;gap:8px}.hs-branding__static{margin-top:24px;padding-top:16px;border-top:1px solid #d8d8d8}.hs-branding__static h2{margin:0 0 6px;font-size:18px}.hs-branding__menu-groups{margin-top:20px;padding:16px;border:1px solid #d9dde8;border-radius:8px;background:#f8fafc}.hs-branding__menu-groups.is-hidden{display:none}.hs-branding__currency{margin-top:24px;padding:16px;border:1px solid #d9dde8;border-radius:8px;background:#f8fafc}.hs-branding__currency label{font-weight:600;color:#334155}.hs-menu-groups{display:flex;flex-direction:column;gap:12px;margin-top:12px}.hs-menu-group{display:flex;flex-wrap:wrap;gap:12px;padding:12px;border:1px solid #e5e7eb;border-radius:6px;background:#fff}.hs-menu-group label{display:flex;flex-direction:column;flex:1 1 220px;font-weight:600;font-size:13px;color:#334155}.hs-menu-group label input[type=text]{margin-top:4px}.hs-menu-group-remove{margin-left:auto}.hs-menu-groups__actions{margin-top:10px}.hs-static-menu{display:flex;flex-direction:column;gap:14px;margin-top:12px}.hs-static-menu .row{display:flex;flex-wrap:wrap;gap:12px;padding:14px;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa}.hs-static-menu .row input.meal-autocomplete{flex:1 1 260px;min-width:220px}.hs-static-menu .row input.price{width:110px}.hs-static-menu .sides{display:flex;flex-wrap:wrap;gap:8px}.hs-static-menu .sides label{margin:0;padding:4px 10px;border:1px solid #d5d7db;border-radius:4px;background:#fff;font-size:13px}.hs-static-menu .remove-row{margin-left:auto}.hs-static-actions{margin-top:12px}';
             $css3 .= '.hs-branding__theme{margin-top:24px;padding-top:20px;border-top:1px solid #d8d8d8;display:flex;flex-direction:column;gap:20px}.hs-branding__theme-grid{display:grid;gap:18px}.hs-branding__theme-group{border:1px solid #e2e8f0;border-radius:8px;padding:16px 18px;background:#f9fafb;display:flex;flex-direction:column;gap:12px}.hs-branding__theme-group h3{margin:0;font-size:16px;color:#0f172a}.hs-branding__field{display:flex;flex-direction:column;gap:4px}.hs-branding__field label{font-weight:600;font-size:13px;color:#334155}.hs-branding__field input[type=text]{max-width:170px}.hs-branding__field input[type=number]{max-width:120px}.hs-branding__field select{max-width:200px}.hs-branding__field .description{margin:0;font-size:12px;color:#64748b}.hs-color-palette{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.hs-color-swatch{--hs-swatch-color:#000;width:34px;height:34px;padding:0;border-radius:4px;border:1px solid #cbd5e1;background:var(--hs-swatch-color);box-shadow:inset 0 0 0 1px rgba(255,255,255,.6);cursor:pointer;position:relative}.hs-color-swatch:hover{box-shadow:0 0 0 2px rgba(37,99,235,.4)}.hs-color-swatch.is-active{box-shadow:0 0 0 3px rgba(37,99,235,.8)}.hs-color-swatch:focus{outline:2px solid #2563eb;outline-offset:2px}';
