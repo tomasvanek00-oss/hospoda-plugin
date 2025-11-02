@@ -3111,8 +3111,30 @@ JS;
             if ($week_override && preg_match('/^\d{4}-\d{2}-\d{2}$/', $week_override)) {
                 $a['week_start'] = $week_override;
             }
-            $start = $a['week_start'] ?: date('Y-m-d');
+            $manual_week_start = false;
+            $start = $a['week_start'];
+            if ($start !== '') {
+                $manual_week_start = true;
+            }
+
+            if (!$manual_week_start) {
+                $start = wp_date('Y-m-d');
+                $today_ts = strtotime($start . ' 12:00:00');
+                if ($today_ts !== false) {
+                    $dow_today = (int) wp_date('N', $today_ts);
+                    if ($dow_today >= 6) {
+                        $next_monday = strtotime('next monday', $today_ts);
+                        if ($next_monday !== false) {
+                            $start = wp_date('Y-m-d', $next_monday);
+                        }
+                    }
+                }
+            }
+
             $ts = strtotime($start);
+            if ($ts === false) {
+                $ts = current_time('timestamp');
+            }
             $dow = (int) wp_date('N', $ts); // 1 = Mon
             $monday = wp_date('Y-m-d', strtotime('-'.($dow-1).' days', $ts));
             // expanded only if full=1 or view=full
