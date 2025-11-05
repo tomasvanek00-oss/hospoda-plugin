@@ -1018,11 +1018,13 @@ JS;
         }
 
         $defaults = [
-            'soup_price_mode' => 'included',
-            'sides_mode'      => 'taxonomy',
-            'pricing_mode'    => 'per_item',
-            'menu_groups'     => [],
-            'currency_label'  => 'Kč',
+            'soup_price_mode'      => 'included',
+            'sides_mode'           => 'taxonomy',
+            'pricing_mode'         => 'per_item',
+            'menu_groups'          => [],
+            'currency_label'       => 'Kč',
+            'day_switch_hour'      => 12,
+            'weekend_rollover_day' => 6,
         ];
         $prefs = wp_parse_args($stored, $defaults);
         $prefs['soup_price_mode'] = $this->normalize_soup_price_mode($prefs['soup_price_mode'] ?? '');
@@ -1030,6 +1032,8 @@ JS;
         $prefs['pricing_mode'] = $this->normalize_pricing_mode((string)($prefs['pricing_mode'] ?? ''));
         $prefs['menu_groups'] = $this->sanitize_menu_groups($prefs['menu_groups'] ?? []);
         $prefs['currency_label'] = $this->sanitize_currency_label($prefs['currency_label'] ?? '');
+        $prefs['day_switch_hour'] = $this->sanitize_day_switch_hour($prefs['day_switch_hour'] ?? 12);
+        $prefs['weekend_rollover_day'] = $this->sanitize_weekend_rollover_day($prefs['weekend_rollover_day'] ?? 6);
 
         $this->menu_preferences_cache = $prefs;
 
@@ -1336,6 +1340,38 @@ JS;
         return $clean;
     }
 
+    private function sanitize_day_switch_hour($value): int {
+        if (is_string($value) && $value !== '') {
+            $value = trim($value);
+        }
+
+        $hour = is_numeric($value) ? (int) $value : 12;
+        if ($hour < 0) {
+            $hour = 0;
+        }
+        if ($hour > 23) {
+            $hour = 23;
+        }
+
+        return $hour;
+    }
+
+    private function sanitize_weekend_rollover_day($value): int {
+        if (is_string($value) && $value !== '') {
+            $value = trim($value);
+        }
+
+        $day = is_numeric($value) ? (int) $value : 6;
+        if ($day < 1) {
+            $day = 1;
+        }
+        if ($day > 7) {
+            $day = 7;
+        }
+
+        return $day;
+    }
+
     private function get_currency_label(): string {
         $prefs = $this->get_menu_preferences();
         $label = isset($prefs['currency_label']) ? (string)$prefs['currency_label'] : '';
@@ -1344,6 +1380,95 @@ JS;
             $label = 'Kč';
         }
         return $label;
+    }
+
+    private function get_day_switch_hour(): int {
+        $prefs = $this->get_menu_preferences();
+        $hour = isset($prefs['day_switch_hour']) ? (int) $prefs['day_switch_hour'] : 12;
+        if ($hour < 0 || $hour > 23) {
+            $hour = 12;
+        }
+
+        return $hour;
+    }
+
+    private function get_weekend_rollover_day(): int {
+        $prefs = $this->get_menu_preferences();
+        $day = isset($prefs['weekend_rollover_day']) ? (int) $prefs['weekend_rollover_day'] : 6;
+        if ($day < 1 || $day > 7) {
+            $day = 6;
+        }
+
+        return $day;
+    }
+
+    private function get_effective_today_datetime(): \DateTimeImmutable {
+        $timezone = wp_timezone();
+        if (!$timezone instanceof \DateTimeZone) {
+            $timezone = new \DateTimeZone('UTC');
+        }
+
+        $now = new \DateTimeImmutable('now', $timezone);
+        $hour = $this->get_day_switch_hour();
+        $after_cutoff = $this->is_after_day_switch_hour($now, $hour);
+        $current_dow = (int) $now->format('N');
+
+        $effective = $now;
+        if ($after_cutoff) {
+            $effective = $effective->modify('+1 day');
+        }
+
+        $weekend_day = $this->get_weekend_rollover_day();
+        if ($this->should_roll_to_next_monday($effective, $weekend_day, $after_cutoff, $current_dow)) {
+            $effective = $this->move_to_next_monday($effective);
+        }
+
+        return $effective;
+    }
+
+    private function is_after_day_switch_hour(\DateTimeImmutable $moment, int $hour): bool {
+        if ($hour < 0 || $hour > 23) {
+            return false;
+        }
+
+        $cutoff = $moment->setTime($hour, 0, 0);
+
+        return $moment >= $cutoff;
+    }
+
+    private function should_roll_to_next_monday(\DateTimeImmutable $candidate, int $weekend_day, bool $after_cutoff, int $current_dow): bool {
+        if ($weekend_day < 1 || $weekend_day > 7) {
+            $weekend_day = 6;
+        }
+
+        $dow = (int) $candidate->format('N');
+        if ($dow > $weekend_day) {
+            return true;
+        }
+
+        if ($dow === $weekend_day) {
+            if ($weekend_day === 6) {
+                return true;
+            }
+
+            if ($current_dow === $weekend_day) {
+                return $after_cutoff;
+            }
+
+            return false;
+        }
+
+        return false;
+    }
+
+    private function move_to_next_monday(\DateTimeImmutable $candidate): \DateTimeImmutable {
+        $dow = (int) $candidate->format('N');
+        if ($dow === 1) {
+            return $candidate;
+        }
+
+        $days_to_add = 8 - $dow;
+        return $candidate->modify('+' . $days_to_add . ' days');
     }
 
     private function price_contains_currency(string $price, string $currency): bool {
@@ -2254,6 +2379,8 @@ JS;
         $sides_mode = $preferences['sides_mode'] ?? 'taxonomy';
         $pricing_mode = $preferences['pricing_mode'] ?? 'per_item';
         $currency_label = $this->get_currency_label();
+        $day_switch_hour = isset($preferences['day_switch_hour']) ? (int) $preferences['day_switch_hour'] : $this->get_day_switch_hour();
+        $weekend_rollover_day = isset($preferences['weekend_rollover_day']) ? (int) $preferences['weekend_rollover_day'] : $this->get_weekend_rollover_day();
         $price_placeholder = $this->get_price_placeholder_label();
         $menu_price_hint = $this->get_menu_price_hint();
         $static_items = $branding['static_menu_items'] ?? [];
@@ -2326,6 +2453,15 @@ JS;
             '600' => 'Polotučné (600)',
             '700' => 'Tučné (700)',
             '400' => 'Normální (400)',
+        ];
+        $weekend_day_options = [
+            5 => 'Pátek',
+            6 => 'Sobota',
+            7 => 'Neděle',
+            4 => 'Čtvrtek',
+            3 => 'Středa',
+            2 => 'Úterý',
+            1 => 'Pondělí',
         ];
         $base_size_value = isset($typo_theme['base_size']) ? (int)$typo_theme['base_size'] : 16;
         ?>
@@ -2413,6 +2549,19 @@ JS;
             <label for="hs-currency-label">Text měny</label><br>
             <input type="text" id="hs-currency-label" name="currency_label" value="<?php echo esc_attr($currency_label); ?>" class="regular-text">
             <p class="description">Například „Kč“, „CZK“ nebo „EUR“. Tento text se automaticky přidá k cenám, pokud již neobsahují měnu.</p>
+          </fieldset>
+          <fieldset class="hs-branding__schedule">
+            <legend><strong>Přepínání dnů</strong></legend>
+            <label for="hs-day-switch-hour">Hodina přepnutí na další den</label><br>
+            <input type="number" id="hs-day-switch-hour" name="day_switch_hour" min="0" max="23" value="<?php echo esc_attr($day_switch_hour); ?>" class="small-text"> <span class="description">Po dosažení této hodiny se výpis jídel automaticky přepne na následující den.</span>
+            <p class="description">Například zadáním hodnoty <strong>15</strong> se v 15:00 začne zobrazovat jídelníček na další den.</p>
+            <label for="hs-weekend-rollover"><strong>Začátek víkendu</strong></label><br>
+            <select id="hs-weekend-rollover" name="weekend_rollover_day">
+              <?php foreach ($weekend_day_options as $value => $label_day) : ?>
+                <option value="<?php echo esc_attr($value); ?>" <?php selected((int) $value, (int) $weekend_rollover_day); ?>><?php echo esc_html($label_day); ?></option>
+              <?php endforeach; ?>
+            </select>
+            <p class="description">Zvolený den se po dosažení uvedené hodiny (a všechny následující dny) automaticky přepne na nadcházející pondělí.</p>
           </fieldset>
           <fieldset class="hs-branding__sides">
             <legend><strong>Práce s přílohami</strong></legend>
@@ -2724,6 +2873,8 @@ JS;
             'pricing_mode'    => $this->normalize_pricing_mode(isset($_POST['pricing_mode']) ? sanitize_text_field(wp_unslash($_POST['pricing_mode'])) : ''),
             'menu_groups'     => $this->prepare_menu_groups_submission($raw_groups),
             'currency_label'  => $this->sanitize_currency_label(isset($_POST['currency_label']) ? wp_unslash($_POST['currency_label']) : ''),
+            'day_switch_hour' => $this->sanitize_day_switch_hour(isset($_POST['day_switch_hour']) ? wp_unslash($_POST['day_switch_hour']) : 12),
+            'weekend_rollover_day' => $this->sanitize_weekend_rollover_day(isset($_POST['weekend_rollover_day']) ? wp_unslash($_POST['weekend_rollover_day']) : 6),
         ];
         update_option('hsp_menu_preferences', $preferences, false);
         $this->menu_preferences_cache = null;
@@ -3117,18 +3268,10 @@ JS;
                 $manual_week_start = true;
             }
 
+            $effective_today = null;
             if (!$manual_week_start) {
-                $start = wp_date('Y-m-d');
-                $today_ts = strtotime($start . ' 12:00:00');
-                if ($today_ts !== false) {
-                    $dow_today = (int) wp_date('N', $today_ts);
-                    if ($dow_today >= 6) {
-                        $next_monday = strtotime('next monday', $today_ts);
-                        if ($next_monday !== false) {
-                            $start = wp_date('Y-m-d', $next_monday);
-                        }
-                    }
-                }
+                $effective_today = $this->get_effective_today_datetime();
+                $start = $effective_today->format('Y-m-d');
             }
 
             $ts = strtotime($start);
@@ -3147,7 +3290,11 @@ JS;
             echo '<div class="hsp-root">';
 
             // COLLAPSED: zobrazíme jen jeden den (dnes, pokud spadá do zvoleného týdne; jinak pondělí)
-            $today = wp_date('Y-m-d');
+            if (!$manual_week_start && $effective_today instanceof \DateTimeImmutable) {
+                $today = $effective_today->format('Y-m-d');
+            } else {
+                $today = wp_date('Y-m-d');
+            }
             $today_ts = strtotime($today);
             $week_start_ts = strtotime($monday);
             $week_end_ts = strtotime('+4 days', $week_start_ts);
