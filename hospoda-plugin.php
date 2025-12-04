@@ -1926,12 +1926,15 @@ JS;
         update_post_meta($post_id,'menu_date',$date);
         $soup_in = $_POST['soup'] ?? [];
         $soup_id = isset($soup_in['id']) ? intval($soup_in['id']) : 0;
-        if (!$soup_id && !empty($soup_in['title'])){ $soup_id = $this->ensure_meal_exists($soup_in['title']); }
+        $soup_title_raw = sanitize_text_field($soup_in['title'] ?? '');
+        $soup_price = sanitize_text_field($soup_in['price'] ?? '');
+        $soup_allergens = $this->sanitize_allergen_list($soup_in['allergens'] ?? []);
+        [$soup_id, $soup_title] = $this->resolve_meal_variant($soup_id, $soup_title_raw, $soup_price, $soup_allergens, [], false);
         $soup = [
             'id'        => $soup_id,
-            'title'     => $this->meal_title_by_id($soup_id,sanitize_text_field($soup_in['title']??'')),
-            'price'     => sanitize_text_field($soup_in['price']??''),
-            'allergens' => $this->sanitize_allergen_list($soup_in['allergens'] ?? []),
+            'title'     => $soup_title,
+            'price'     => $soup_price,
+            'allergens' => $soup_allergens,
         ];
         update_post_meta($post_id,'soup',$soup);
         $mains=[];
@@ -1954,7 +1957,10 @@ JS;
 
         foreach($_POST['mains']??[] as $row){
             $id=intval($row['id']??0);
-            if (!$id && !empty($row['title'])){ $id = $this->ensure_meal_exists($row['title']); }
+            $title_raw = sanitize_text_field($row['title'] ?? '');
+            $price = sanitize_text_field($row['price'] ?? '');
+            $allergens = $this->sanitize_allergen_list($row['allergens'] ?? []);
+            $sides_list = array_values(array_unique(array_map('intval',$row['sides']??[])));
             $group_key = '';
             if ($use_groups) {
                 $candidate = isset($row['menu_group']) ? sanitize_key($row['menu_group']) : '';
@@ -1964,12 +1970,15 @@ JS;
                     $group_key = $default_group_key;
                 }
             }
+
+            [$id, $resolved_title] = $this->resolve_meal_variant($id, $title_raw, $price, $allergens, $sides_list, $this->should_manage_sides());
+
             $mains[]=[
                 'id'=>$id,
-                'title'=>$this->meal_title_by_id($id,sanitize_text_field($row['title']??'')),
-                'price'=>sanitize_text_field($row['price']??''),
-                'sides'=>array_values(array_unique(array_map('intval',$row['sides']??[]))),
-                'allergens'=>$this->sanitize_allergen_list($row['allergens'] ?? []),
+                'title'=>$resolved_title,
+                'price'=>$price,
+                'sides'=>$sides_list,
+                'allergens'=>$allergens,
                 'menu_group'=>$group_key,
             ];
         }
@@ -1980,6 +1989,70 @@ JS;
     private function meal_title_by_id($id,$fallback){
         if ($id) { $p=get_post($id); if($p) return $p->post_title; }
         return $fallback;
+    }
+
+    /**
+     * Pokud uživatel upraví název převzatého jídla, založí novou položku v knihovně
+     * a uloží ji s původní i novou verzí.
+     */
+    private function resolve_meal_variant(int $id, string $input_title, string $price, array $allergens, array $sides, bool $use_sides): array {
+        $input_title = trim($input_title);
+        $canonical = $this->meal_title_by_id($id, '');
+
+        // Pokud je název změněný oproti knihovně, vytvoř nový záznam a ten ulož do týdne.
+        if ($canonical !== '' && $input_title !== '' && $canonical !== $input_title) {
+            $cloned_id = $this->clone_meal_variant($id, $input_title, $price, $allergens, $sides, $use_sides);
+            if ($cloned_id > 0) {
+                return [$cloned_id, $input_title];
+            }
+        }
+
+        if (!$id && $input_title !== '') {
+            $new_id = $this->ensure_meal_exists($input_title);
+            return [$new_id, $input_title];
+        }
+
+        if ($canonical !== '') {
+            return [$id, $canonical];
+        }
+
+        return [$id, $input_title];
+    }
+
+    private function clone_meal_variant(int $source_id, string $title, string $price, array $allergens, array $sides, bool $use_sides): int {
+        $title = trim($title);
+        if ($title === '') {
+            return 0;
+        }
+
+        $new_id = (int) wp_insert_post([
+            'post_type'   => CPT_MEAL,
+            'post_status' => 'publish',
+            'post_title'  => $title,
+        ]);
+
+        if ($new_id <= 0) {
+            return 0;
+        }
+
+        $resolved_price = $price !== '' ? $price : sanitize_text_field((string) get_post_meta($source_id, 'price', true));
+        if ($resolved_price !== '') {
+            update_post_meta($new_id, 'price', $resolved_price);
+        }
+
+        $resolved_allergens = !empty($allergens) ? $allergens : $this->get_meal_term_ids($source_id, TAX_ALLERGEN);
+        if (!empty($resolved_allergens)) {
+            wp_set_object_terms($new_id, array_map('intval', $resolved_allergens), TAX_ALLERGEN, false);
+        }
+
+        if ($use_sides) {
+            $resolved_sides = !empty($sides) ? $sides : $this->get_meal_term_ids($source_id, TAX_SIDE);
+            if (!empty($resolved_sides)) {
+                wp_set_object_terms($new_id, array_map('intval', $resolved_sides), TAX_SIDE, false);
+            }
+        }
+
+        return $new_id;
     }
 
     // ---------- Týdenní admin stránka ----------
@@ -2749,12 +2822,15 @@ JS;
             // Polévka
             $soup_in = $week['soup'][$i] ?? [];
             $soup_id = isset($soup_in['id']) ? intval($soup_in['id']) : 0;
-            if (!$soup_id && !empty($soup_in['title'])){ $soup_id = $this->ensure_meal_exists($soup_in['title']); }
+            $soup_title_raw = sanitize_text_field($soup_in['title'] ?? '');
+            $soup_price = sanitize_text_field($soup_in['price'] ?? '');
+            $soup_allergens = $this->sanitize_allergen_list($soup_in['allergens'] ?? []);
+            [$soup_id, $soup_title] = $this->resolve_meal_variant($soup_id, $soup_title_raw, $soup_price, $soup_allergens, [], false);
             $soup = [
                 'id'        => $soup_id,
-                'title'     => $this->meal_title_by_id($soup_id, sanitize_text_field($soup_in['title'] ?? '')),
-                'price'     => sanitize_text_field($soup_in['price'] ?? ''),
-                'allergens' => $this->sanitize_allergen_list($soup_in['allergens'] ?? []),
+                'title'     => $soup_title,
+                'price'     => $soup_price,
+                'allergens' => $soup_allergens,
             ];
             update_post_meta($post_id, 'soup', $soup);
 
@@ -2783,7 +2859,9 @@ JS;
 
             foreach ($mains_in as $row) {
                 $id = intval($row['id'] ?? 0);
-                if (!$id && !empty($row['title'])){ $id = $this->ensure_meal_exists($row['title']); }
+                $title_raw = sanitize_text_field($row['title'] ?? '');
+                $price = sanitize_text_field($row['price'] ?? '');
+                $allergens = $this->sanitize_allergen_list($row['allergens'] ?? []);
                 $sides_list = array_values(array_unique(array_map('intval', $row['sides'] ?? [])));
                 $group_key = '';
                 if ($use_groups) {
@@ -2794,12 +2872,15 @@ JS;
                         $group_key = $default_group_key;
                     }
                 }
+
+                [$id, $resolved_title] = $this->resolve_meal_variant($id, $title_raw, $price, $allergens, $sides_list, $use_sides);
+
                 $mains[] = [
                     'id'    => $id,
-                    'title' => $this->meal_title_by_id($id, sanitize_text_field($row['title'] ?? '')),
-                    'price' => sanitize_text_field($row['price'] ?? ''),
+                    'title' => $resolved_title,
+                    'price' => $price,
                     'sides' => $sides_list,
-                    'allergens' => $this->sanitize_allergen_list($row['allergens'] ?? []),
+                    'allergens' => $allergens,
                     'menu_group' => $group_key,
                 ];
             }
