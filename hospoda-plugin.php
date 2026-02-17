@@ -1148,20 +1148,21 @@ JS;
     private function get_order_login_url(string $redirect_url = ''): string {
         $settings = $this->get_order_settings();
         $custom = trim((string)($settings['custom_login_url'] ?? ''));
+        $target_redirect = $redirect_url !== '' ? add_query_arg('hsp_after_login', '1', $redirect_url) : '';
 
         if ($custom !== '') {
-            if ($redirect_url !== '') {
-                return add_query_arg('redirect_to', $redirect_url, $custom);
+            if ($target_redirect !== '') {
+                return add_query_arg('redirect_to', $target_redirect, $custom);
             }
             return $custom;
         }
 
-        $auto_login_url = $this->ensure_order_login_page($redirect_url);
+        $auto_login_url = $this->ensure_order_login_page($target_redirect);
         if ($auto_login_url !== '') {
             return $auto_login_url;
         }
 
-        return wp_login_url($redirect_url !== '' ? $redirect_url : home_url('/'));
+        return wp_login_url($target_redirect !== '' ? $target_redirect : home_url('/'));
     }
 
     private function ensure_order_login_page(string $redirect_url = ''): string {
@@ -3983,6 +3984,11 @@ JS;
         if ($redirect === '') {
             $redirect = home_url('/');
         }
+        $registration_open = (bool) get_option('users_can_register');
+        $register_url = $registration_open ? wp_registration_url() : '';
+        if ($registration_open && $register_url !== '') {
+            $register_url = add_query_arg('redirect_to', $redirect, $register_url);
+        }
 
         if (is_user_logged_in()) {
             return '<p><strong>Jste přihlášen/a.</strong> <a class="button" href="' . esc_url($redirect) . '">Pokračovat na objednávku</a></p>';
@@ -3999,6 +4005,10 @@ JS;
             'label_remember' => 'Pamatovat si mě',
             'label_log_in' => 'Přihlásit se',
         ]);
+        if ($registration_open && $register_url !== '') {
+            echo '<p class="hsp-order-register">Nemáte účet? <a href="' . esc_url($register_url) . '">Zaregistrujte se</a>.</p>';
+        }
+        echo '<script>(function(){try{var c=document.cookie||"";if(c.indexOf("wordpress_logged_in_")!==-1){var target=' . wp_json_encode($redirect) . ';if(target){window.location.replace(target);}}}catch(e){}})();</script>';
         echo '</div>';
         return (string) ob_get_clean();
     }
@@ -4013,6 +4023,9 @@ JS;
             $current_url = (string) (get_permalink() ?: home_url('/'));
             $login_url = $this->get_order_login_url($current_url);
             $locked = '<div class="hsp-order-locked"><p><strong>Objednávky jsou dostupné jen pro přihlášené zákazníky.</strong></p><p><a class="button button-primary" href="' . esc_url($login_url) . '">Přihlásit se</a></p><p class="description">Po přihlášení zůstanete na této stránce.</p></div>';
+            if (isset($_GET['hsp_after_login'])) {
+                $locked .= '<p class="description">Vypadá to, že stránku drží cache pro nepřihlášené. Zkuste tvrdý refresh (Ctrl/Cmd+Shift+R) nebo vyloučit tuto URL z cache.</p>';
+            }
             $locked .= '<script>(function(){try{var c=document.cookie||"";if(c.indexOf("wordpress_logged_in_")!==-1){var u=new URL(window.location.href);if(!u.searchParams.get("hsp_refresh")){u.searchParams.set("hsp_refresh",String(Date.now()));window.location.replace(u.toString());}}}catch(e){}})();</script>';
             return $locked;
         }
