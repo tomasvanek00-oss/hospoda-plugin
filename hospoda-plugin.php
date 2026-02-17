@@ -125,6 +125,7 @@ class Hospoda_Plugin {
         add_shortcode('poledni_menu', [$this,'shortcode_menu']);
         add_shortcode('hsp_order_form', [$this,'shortcode_order_form']);
         add_shortcode('hsp_my_orders', [$this,'shortcode_my_orders']);
+        add_shortcode('hsp_order_login', [$this,'shortcode_order_login']);
         add_action('add_meta_boxes', [$this,'add_day_metabox']);
         add_filter('manage_'.CPT_DAY.'_posts_columns', [$this,'day_columns']);
         add_action('manage_'.CPT_DAY.'_posts_custom_column', [$this,'day_columns_content'], 10, 2);
@@ -1150,12 +1151,70 @@ JS;
 
         if ($custom !== '') {
             if ($redirect_url !== '') {
-                return add_query_arg('redirect_to', rawurlencode($redirect_url), $custom);
+                return add_query_arg('redirect_to', $redirect_url, $custom);
             }
             return $custom;
         }
 
+        $auto_login_url = $this->ensure_order_login_page($redirect_url);
+        if ($auto_login_url !== '') {
+            return $auto_login_url;
+        }
+
         return wp_login_url($redirect_url !== '' ? $redirect_url : home_url('/'));
+    }
+
+    private function ensure_order_login_page(string $redirect_url = ''): string {
+        $stored_id = (int) get_option('hsp_order_login_page_id', 0);
+        if ($stored_id > 0) {
+            $post = get_post($stored_id);
+            if ($post instanceof \WP_Post && $post->post_status === 'publish') {
+                $url = get_permalink($stored_id);
+                if (is_string($url) && $url !== '') {
+                    return $redirect_url !== '' ? add_query_arg('redirect_to', $redirect_url, $url) : $url;
+                }
+            }
+        }
+
+        $existing = get_posts([
+            'post_type' => 'page',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'meta_key' => '_hsp_order_login_page',
+            'meta_value' => '1',
+            'fields' => 'ids',
+        ]);
+
+        if (!empty($existing[0])) {
+            $existing_id = (int) $existing[0];
+            update_option('hsp_order_login_page_id', $existing_id, false);
+            $url = get_permalink($existing_id);
+            if (is_string($url) && $url !== '') {
+                return $redirect_url !== '' ? add_query_arg('redirect_to', $redirect_url, $url) : $url;
+            }
+        }
+
+        $new_id = wp_insert_post([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Přihlášení pro objednávky',
+            'post_name' => 'prihlaseni-objednavky',
+            'post_content' => '[hsp_order_login]',
+        ], true);
+
+        if (is_wp_error($new_id) || !$new_id) {
+            return '';
+        }
+
+        update_post_meta((int)$new_id, '_hsp_order_login_page', '1');
+        update_option('hsp_order_login_page_id', (int)$new_id, false);
+
+        $url = get_permalink((int)$new_id);
+        if (!is_string($url) || $url === '') {
+            return '';
+        }
+
+        return $redirect_url !== '' ? add_query_arg('redirect_to', $redirect_url, $url) : $url;
     }
 
     private function is_ordering_enabled(): bool {
@@ -3022,6 +3081,7 @@ JS;
             <div class="hs-order-settings-extra" style="<?php echo empty($order_settings['enabled']) ? 'display:none' : ''; ?>">
               <p><input type="hidden" name="order_settings[require_login]" value="0"><label><input type="checkbox" name="order_settings[require_login]" value="1" <?php checked(!empty($order_settings['require_login'])); ?>> Povolit objednávky pouze pro registrované/přihlášené uživatele</label></p>
               <p><label>Vlastní URL přihlášení (volitelné)<br><input type="url" class="large-text" name="order_settings[custom_login_url]" value="<?php echo esc_attr($order_settings['custom_login_url'] ?? ''); ?>" placeholder="https://vasweb.cz/prihlaseni"></label></p>
+              <p class="description">Když pole necháte prázdné, plugin automaticky vytvoří stránku „Přihlášení pro objednávky“.</p>
               <p><label>Režim objednávek
                 <select name="order_settings[mode]">
                   <option value="day" <?php selected($order_settings['mode'] ?? 'both', 'day'); ?>>Denní</option>
@@ -3916,6 +3976,31 @@ JS;
             wp_send_json_error(['message' => $result['error']], 400);
         }
         wp_send_json_success(['order_number' => $result['order_number']]);
+    }
+
+    public function shortcode_order_login($atts = []): string {
+        $redirect = isset($_GET['redirect_to']) ? esc_url_raw(wp_unslash($_GET['redirect_to'])) : '';
+        if ($redirect === '') {
+            $redirect = home_url('/');
+        }
+
+        if (is_user_logged_in()) {
+            return '<p><strong>Jste přihlášen/a.</strong> <a class="button" href="' . esc_url($redirect) . '">Pokračovat na objednávku</a></p>';
+        }
+
+        ob_start();
+        echo '<div class="hsp-order-login">';
+        echo '<h3>Přihlášení zákazníka</h3>';
+        wp_login_form([
+            'echo' => true,
+            'redirect' => $redirect,
+            'label_username' => 'E-mail nebo uživatelské jméno',
+            'label_password' => 'Heslo',
+            'label_remember' => 'Pamatovat si mě',
+            'label_log_in' => 'Přihlásit se',
+        ]);
+        echo '</div>';
+        return (string) ob_get_clean();
     }
 
     public function shortcode_order_form($atts = []): string {
