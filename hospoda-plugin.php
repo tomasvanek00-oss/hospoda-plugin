@@ -16,6 +16,7 @@ if (!defined('ABSPATH')) exit;
 const VERSION    = '1.0.1';
 const CPT_MEAL   = 'meal';        // knihovna jídel
 const CPT_DAY    = 'daily_menu';  // polední menu podle data
+const CPT_ORDER  = 'hsp_order';   // objednávky
 const TAX_SIDE   = 'meal_side';   // přílohy
 const TAX_ALLERGEN = 'meal_allergen';   // alergeny 1–14
 
@@ -118,7 +119,12 @@ class Hospoda_Plugin {
         add_action('admin_post_hospoda_save_week', [$this,'handle_save_week']);
         add_action('admin_post_hospoda_save_branding', [$this,'handle_save_branding']);
         add_action('admin_post_hospoda_export_week_pdf', [$this,'handle_export_week_pdf']);
+        add_action('admin_post_hsp_order_export_delivery_csv', [$this,'handle_order_export_delivery_csv']);
+        add_action('admin_post_hsp_order_export_kitchen_csv', [$this,'handle_order_export_kitchen_csv']);
+        add_action('admin_post_hsp_order_update_status', [$this,'handle_order_status_update']);
         add_shortcode('poledni_menu', [$this,'shortcode_menu']);
+        add_shortcode('hsp_order_form', [$this,'shortcode_order_form']);
+        add_shortcode('hsp_my_orders', [$this,'shortcode_my_orders']);
         add_action('add_meta_boxes', [$this,'add_day_metabox']);
         add_filter('manage_'.CPT_DAY.'_posts_columns', [$this,'day_columns']);
         add_action('manage_'.CPT_DAY.'_posts_custom_column', [$this,'day_columns_content'], 10, 2);
@@ -127,6 +133,8 @@ class Hospoda_Plugin {
         add_action('wp_print_styles', [$this,'frontend_assets'], 9999);
         add_action('wp_ajax_hsp_get_week', [$this,'ajax_get_week']);
         add_action('wp_ajax_nopriv_hsp_get_week', [$this,'ajax_get_week']);
+        add_action('wp_ajax_hsp_submit_order', [$this,'ajax_submit_order']);
+        add_action('wp_ajax_nopriv_hsp_submit_order', [$this,'ajax_submit_order']);
     }
 
     /**
@@ -233,6 +241,25 @@ class Hospoda_Plugin {
             'labels'=>['name'=>'Denní menu','singular_name'=>'Menu dne','menu_name'=>'Denní menu (archiv)'],
             'public'=>false,'show_ui'=>false,'show_in_menu'=>false,'supports'=>['title']
         ]);
+
+        register_post_type(CPT_ORDER, [
+            'labels' => [
+                'name' => 'Objednávky',
+                'singular_name' => 'Objednávka',
+                'menu_name' => 'Objednávky',
+            ],
+            'public' => false,
+            'show_ui' => false,
+            'show_in_menu' => false,
+            'supports' => ['title'],
+        ]);
+
+        register_post_status('hsp_new', ['label' => 'Nová', 'public' => false, 'show_in_admin_all_list' => true, 'show_in_admin_status_list' => true, 'label_count' => _n_noop('Nová <span class="count">(%s)</span>', 'Nová <span class="count">(%s)</span>')]);
+        register_post_status('hsp_confirmed', ['label' => 'Potvrzená', 'public' => false, 'show_in_admin_all_list' => true, 'show_in_admin_status_list' => true, 'label_count' => _n_noop('Potvrzená <span class="count">(%s)</span>', 'Potvrzená <span class="count">(%s)</span>')]);
+        register_post_status('hsp_in_kitchen', ['label' => 'V kuchyni', 'public' => false, 'show_in_admin_all_list' => true, 'show_in_admin_status_list' => true, 'label_count' => _n_noop('V kuchyni <span class="count">(%s)</span>', 'V kuchyni <span class="count">(%s)</span>')]);
+        register_post_status('hsp_out_for_delivery', ['label' => 'Na rozvozu', 'public' => false, 'show_in_admin_all_list' => true, 'show_in_admin_status_list' => true, 'label_count' => _n_noop('Na rozvozu <span class="count">(%s)</span>', 'Na rozvozu <span class="count">(%s)</span>')]);
+        register_post_status('hsp_done', ['label' => 'Hotovo', 'public' => false, 'show_in_admin_all_list' => true, 'show_in_admin_status_list' => true, 'label_count' => _n_noop('Hotovo <span class="count">(%s)</span>', 'Hotovo <span class="count">(%s)</span>')]);
+        register_post_status('hsp_cancelled', ['label' => 'Zrušeno', 'public' => false, 'show_in_admin_all_list' => true, 'show_in_admin_status_list' => true, 'label_count' => _n_noop('Zrušeno <span class="count">(%s)</span>', 'Zrušeno <span class="count">(%s)</span>')]);
     }
 
     /**
@@ -284,6 +311,18 @@ class Hospoda_Plugin {
             'hospoda-week-branding',
             [$this,'render_branding_admin_page']
         );
+
+
+        if ($this->is_ordering_enabled()) {
+            add_submenu_page(
+                'hospoda-week',
+                'Objednávky',
+                'Objednávky',
+                'edit_posts',
+                'hospoda-orders',
+                [$this,'render_orders_admin_page']
+            );
+        }
     }
 
     public function adjust_admin_submenus() {
@@ -1042,6 +1081,167 @@ JS;
 
     private function normalize_soup_price_mode(string $value): string {
         return in_array($value, ['included', 'separate'], true) ? $value : 'included';
+    }
+
+
+    private function get_order_settings_defaults(): array {
+        return [
+            'enabled' => 0,
+            'mode' => 'both',
+            'cutoff_type' => 'same_day_time',
+            'cutoff_value' => '09:30',
+            'delivery_mode' => 'both',
+            'delivery_fee_type' => 'fixed',
+            'delivery_fee_value' => '0',
+            'delivery_zones' => "",
+            'payment_mode' => 'reservation',
+            'notification_email' => get_option('admin_email'),
+            'customer_email_template' => 'Děkujeme za objednávku #{order_number}.',
+            'ops_email_template' => 'Nová objednávka #{order_number} na datum {menu_date}.',
+            'max_orders_per_day' => 0,
+            'max_item_qty' => 0,
+            'gdpr_text' => 'Souhlasím se zpracováním osobních údajů pro vyřízení objednávky.',
+            'gdpr_link' => '',
+            'retention_days' => 90,
+        ];
+    }
+
+    private function get_order_settings(): array {
+        $stored = get_option('hsp_order_settings', []);
+        if (!is_array($stored)) {
+            $stored = [];
+        }
+
+        return $this->sanitize_order_settings(wp_parse_args($stored, $this->get_order_settings_defaults()));
+    }
+
+    private function sanitize_order_settings(array $input): array {
+        $defaults = $this->get_order_settings_defaults();
+        $data = wp_parse_args($input, $defaults);
+        $data['enabled'] = !empty($data['enabled']) ? 1 : 0;
+        $data['mode'] = in_array($data['mode'], ['day', 'week', 'both'], true) ? $data['mode'] : 'both';
+        $data['cutoff_type'] = in_array($data['cutoff_type'], ['same_day_time', 'day_before_time', 'hours_before'], true) ? $data['cutoff_type'] : 'same_day_time';
+        $data['cutoff_value'] = sanitize_text_field((string)$data['cutoff_value']);
+        $data['delivery_mode'] = in_array($data['delivery_mode'], ['delivery', 'pickup', 'both'], true) ? $data['delivery_mode'] : 'both';
+        $data['delivery_fee_type'] = in_array($data['delivery_fee_type'], ['fixed', 'zone', 'free_from'], true) ? $data['delivery_fee_type'] : 'fixed';
+        $data['delivery_fee_value'] = sanitize_text_field((string)$data['delivery_fee_value']);
+        $data['delivery_zones'] = sanitize_textarea_field((string)$data['delivery_zones']);
+        $data['payment_mode'] = in_array($data['payment_mode'], ['reservation', 'cash', 'qr', 'future'], true) ? $data['payment_mode'] : 'reservation';
+        $data['notification_email'] = sanitize_email((string)$data['notification_email']);
+        $data['customer_email_template'] = sanitize_textarea_field((string)$data['customer_email_template']);
+        $data['ops_email_template'] = sanitize_textarea_field((string)$data['ops_email_template']);
+        $data['max_orders_per_day'] = max(0, (int)$data['max_orders_per_day']);
+        $data['max_item_qty'] = max(0, (int)$data['max_item_qty']);
+        $data['gdpr_text'] = sanitize_textarea_field((string)$data['gdpr_text']);
+        $data['gdpr_link'] = esc_url_raw((string)$data['gdpr_link']);
+        $data['retention_days'] = max(7, (int)$data['retention_days']);
+        return $data;
+    }
+
+    private function is_ordering_enabled(): bool {
+        $settings = $this->get_order_settings();
+        return !empty($settings['enabled']);
+    }
+
+    private function get_order_statuses(): array {
+        return [
+            'hsp_new' => 'Nová',
+            'hsp_confirmed' => 'Potvrzená',
+            'hsp_in_kitchen' => 'V kuchyni',
+            'hsp_out_for_delivery' => 'Na rozvozu',
+            'hsp_done' => 'Hotovo',
+            'hsp_cancelled' => 'Zrušeno',
+        ];
+    }
+
+    private function parse_zone_fees(string $zones): array {
+        $result = [];
+        foreach (preg_split('/
+|
+|
+/', $zones) as $line) {
+            $line = trim($line);
+            if ($line === '' || strpos($line, ':') === false) {
+                continue;
+            }
+            [$name, $fee] = array_map('trim', explode(':', $line, 2));
+            if ($name === '') {
+                continue;
+            }
+            $result[sanitize_title($name)] = [
+                'label' => $name,
+                'fee' => (float)str_replace(',', '.', $fee),
+            ];
+        }
+        return $result;
+    }
+
+    private function compute_delivery_fee(array $settings, string $delivery_type, string $address): float {
+        if ($delivery_type !== 'delivery') {
+            return 0.0;
+        }
+
+        $type = $settings['delivery_fee_type'] ?? 'fixed';
+        $value = (float)str_replace(',', '.', (string)($settings['delivery_fee_value'] ?? '0'));
+        if ($type === 'fixed') {
+            return max(0, $value);
+        }
+
+        if ($type === 'zone') {
+            $zones = $this->parse_zone_fees((string)($settings['delivery_zones'] ?? ''));
+            $address_lower = mb_strtolower($address);
+            foreach ($zones as $zone) {
+                if (mb_strpos($address_lower, mb_strtolower($zone['label'])) !== false) {
+                    return max(0, (float)$zone['fee']);
+                }
+            }
+            return max(0, $value);
+        }
+
+        if ($type === 'free_from') {
+            return max(0, $value);
+        }
+
+        return 0.0;
+    }
+
+    private function get_next_workdays(int $count = 5): array {
+        $dates = [];
+        $cursor = new \DateTimeImmutable('today', wp_timezone());
+        while (count($dates) < $count) {
+            $n = (int)$cursor->format('N');
+            if ($n >= 1 && $n <= 5) {
+                $dates[] = $cursor->format('Y-m-d');
+            }
+            $cursor = $cursor->modify('+1 day');
+        }
+        return $dates;
+    }
+
+    private function can_order_for_date(string $menu_date, array $settings): bool {
+        $target = \DateTimeImmutable::createFromFormat('Y-m-d H:i', $menu_date . ' 00:00', wp_timezone());
+        if (!$target) {
+            return false;
+        }
+
+        $now = new \DateTimeImmutable('now', wp_timezone());
+        $cutoff_type = $settings['cutoff_type'] ?? 'same_day_time';
+        $cutoff_value = (string)($settings['cutoff_value'] ?? '09:30');
+
+        if ($cutoff_type === 'same_day_time') {
+            $cutoff = \DateTimeImmutable::createFromFormat('Y-m-d H:i', $menu_date . ' ' . $cutoff_value, wp_timezone());
+            return $cutoff ? $now <= $cutoff : true;
+        }
+
+        if ($cutoff_type === 'day_before_time') {
+            $base = $target->modify('-1 day');
+            $cutoff = \DateTimeImmutable::createFromFormat('Y-m-d H:i', $base->format('Y-m-d') . ' ' . $cutoff_value, wp_timezone());
+            return $cutoff ? $now <= $cutoff : true;
+        }
+
+        $hours = max(0, (int)$cutoff_value);
+        $cutoff = $target->modify('-' . $hours . ' hours');
+        return $now <= $cutoff;
     }
 
     private function normalize_sides_mode(string $value): string {
@@ -2774,6 +2974,62 @@ JS;
               </div>
             </div>
           </fieldset>
+          <fieldset class="hs-branding__orders">
+            <legend><strong>Objednávkový systém</strong></legend>
+            <p><label><input type="checkbox" name="order_settings[enabled]" value="1" <?php checked(!empty($order_settings['enabled'])); ?>> Povolit modul objednávek</label></p>
+            <div class="hs-order-settings-extra" style="<?php echo empty($order_settings['enabled']) ? 'display:none' : ''; ?>">
+              <p><label>Režim objednávek
+                <select name="order_settings[mode]">
+                  <option value="day" <?php selected($order_settings['mode'] ?? 'both', 'day'); ?>>Denní</option>
+                  <option value="week" <?php selected($order_settings['mode'] ?? 'both', 'week'); ?>>Týdenní</option>
+                  <option value="both" <?php selected($order_settings['mode'] ?? 'both', 'both'); ?>>Obojí</option>
+                </select>
+              </label></p>
+              <p><label>Uzávěrka
+                <select name="order_settings[cutoff_type]">
+                  <option value="same_day_time" <?php selected($order_settings['cutoff_type'] ?? '', 'same_day_time'); ?>>Tentýž den do času</option>
+                  <option value="day_before_time" <?php selected($order_settings['cutoff_type'] ?? '', 'day_before_time'); ?>>Den předem do času</option>
+                  <option value="hours_before" <?php selected($order_settings['cutoff_type'] ?? '', 'hours_before'); ?>>Počet hodin předem</option>
+                </select>
+                <input type="text" name="order_settings[cutoff_value]" value="<?php echo esc_attr($order_settings['cutoff_value'] ?? '09:30'); ?>" placeholder="09:30 / 12">
+              </label></p>
+              <p><label>Doručení
+                <select name="order_settings[delivery_mode]">
+                  <option value="delivery" <?php selected($order_settings['delivery_mode'] ?? '', 'delivery'); ?>>Rozvoz</option>
+                  <option value="pickup" <?php selected($order_settings['delivery_mode'] ?? '', 'pickup'); ?>>Osobní odběr</option>
+                  <option value="both" <?php selected($order_settings['delivery_mode'] ?? '', 'both'); ?>>Obojí</option>
+                </select>
+              </label></p>
+              <p><label>Cena rozvozu
+                <select name="order_settings[delivery_fee_type]">
+                  <option value="fixed" <?php selected($order_settings['delivery_fee_type'] ?? '', 'fixed'); ?>>Fixní</option>
+                  <option value="zone" <?php selected($order_settings['delivery_fee_type'] ?? '', 'zone'); ?>>Podle zóny</option>
+                  <option value="free_from" <?php selected($order_settings['delivery_fee_type'] ?? '', 'free_from'); ?>>Zdarma od částky</option>
+                </select>
+                <input type="text" name="order_settings[delivery_fee_value]" value="<?php echo esc_attr($order_settings['delivery_fee_value'] ?? '0'); ?>" placeholder="0">
+              </label></p>
+              <p><label>Zóny (např. Jarošov:20)
+                <textarea name="order_settings[delivery_zones]" rows="3" class="large-text"><?php echo esc_textarea($order_settings['delivery_zones'] ?? ''); ?></textarea>
+              </label></p>
+              <p><label>Platby
+                <select name="order_settings[payment_mode]">
+                  <option value="reservation" <?php selected($order_settings['payment_mode'] ?? '', 'reservation'); ?>>Bez platby (rezervace)</option>
+                  <option value="cash" <?php selected($order_settings['payment_mode'] ?? '', 'cash'); ?>>Hotově</option>
+                  <option value="qr" <?php selected($order_settings['payment_mode'] ?? '', 'qr'); ?>>QR manuálně</option>
+                  <option value="future" <?php selected($order_settings['payment_mode'] ?? '', 'future'); ?>>Online brána (future)</option>
+                </select>
+              </label></p>
+              <p><label>Email provozovny <input type="email" class="regular-text" name="order_settings[notification_email]" value="<?php echo esc_attr($order_settings['notification_email'] ?? ''); ?>"></label></p>
+              <p><label>Šablona emailu zákazníkovi<textarea name="order_settings[customer_email_template]" rows="2" class="large-text"><?php echo esc_textarea($order_settings['customer_email_template'] ?? ''); ?></textarea></label></p>
+              <p><label>Šablona emailu provozu<textarea name="order_settings[ops_email_template]" rows="2" class="large-text"><?php echo esc_textarea($order_settings['ops_email_template'] ?? ''); ?></textarea></label></p>
+              <p><label>Max objednávek / den <input type="number" name="order_settings[max_orders_per_day]" value="<?php echo esc_attr((string)($order_settings['max_orders_per_day'] ?? 0)); ?>" min="0"></label></p>
+              <p><label>Max porcí na položku <input type="number" name="order_settings[max_item_qty]" value="<?php echo esc_attr((string)($order_settings['max_item_qty'] ?? 0)); ?>" min="0"></label></p>
+              <p><label>GDPR text<textarea name="order_settings[gdpr_text]" rows="2" class="large-text"><?php echo esc_textarea($order_settings['gdpr_text'] ?? ''); ?></textarea></label></p>
+              <p><label>GDPR odkaz <input type="url" class="large-text" name="order_settings[gdpr_link]" value="<?php echo esc_attr($order_settings['gdpr_link'] ?? ''); ?>"></label></p>
+              <p><label>Uchování objednávek (dní) <input type="number" name="order_settings[retention_days]" value="<?php echo esc_attr((string)($order_settings['retention_days'] ?? 90)); ?>" min="7"></label></p>
+            </div>
+          </fieldset>
+          <script>document.addEventListener('DOMContentLoaded',function(){var cb=document.querySelector('input[name="order_settings[enabled]"]');var box=document.querySelector('.hs-order-settings-extra');if(!cb||!box)return;cb.addEventListener('change',function(){box.style.display=cb.checked?'':'none';});});</script>
           <p>
             <button type="submit" class="button button-primary">Uložit nastavení</button>
             <a class="button button-secondary" href="<?php echo esc_url(admin_url('admin.php?page=hospoda-week')); ?>">Zpět na týdenní menu</a>
@@ -2959,6 +3215,11 @@ JS;
         ];
         update_option('hsp_menu_preferences', $preferences, false);
         $this->menu_preferences_cache = null;
+
+        $order_input = isset($_POST['order_settings']) && is_array($_POST['order_settings']) ? wp_unslash($_POST['order_settings']) : [];
+        $order_settings = $this->sanitize_order_settings($order_input);
+        update_option('hsp_order_settings', $order_settings, false);
+        $this->cleanup_old_orders($order_settings);
 
         wp_redirect(admin_url('admin.php?page=hospoda-week-branding&branding_saved=1'));
         exit;
@@ -3315,6 +3576,546 @@ JS;
         echo '</div>';
 
         return ob_get_clean();
+    }
+
+
+    private function get_day_menu_payload(string $date): array {
+        $posts = get_posts([
+            'post_type' => CPT_DAY,
+            'posts_per_page' => 1,
+            'meta_key' => 'menu_date',
+            'meta_value' => $date,
+        ]);
+        if (!$posts) {
+            return [];
+        }
+        $post_id = (int)$posts[0]->ID;
+        $soup = get_post_meta($post_id, 'soup', true);
+        $mains = get_post_meta($post_id, 'mains', true);
+        $items = [];
+        if (!empty($soup['title'])) {
+            $items[] = [
+                'type' => 'soup',
+                'meal_id' => (int)($soup['id'] ?? 0),
+                'title' => (string)$soup['title'],
+                'price' => (string)($soup['price'] ?? ''),
+                'sides' => [],
+                'allergens' => is_array($soup['allergens'] ?? null) ? array_values(array_map('intval', $soup['allergens'])) : [],
+            ];
+        }
+
+        if (is_array($mains)) {
+            foreach ($mains as $main) {
+                if (!is_array($main) || empty($main['title'])) {
+                    continue;
+                }
+                $items[] = [
+                    'type' => 'main',
+                    'meal_id' => (int)($main['id'] ?? 0),
+                    'title' => (string)$main['title'],
+                    'price' => (string)($main['price'] ?? ''),
+                    'sides' => is_array($main['sides'] ?? null) ? array_values(array_map('intval', $main['sides'])) : [],
+                    'allergens' => is_array($main['allergens'] ?? null) ? array_values(array_map('intval', $main['allergens'])) : [],
+                ];
+            }
+        }
+        return $items;
+    }
+
+    private function cleanup_old_orders(array $settings): void {
+        $retention = max(7, (int)($settings['retention_days'] ?? 90));
+        $before = (new \DateTimeImmutable('now', wp_timezone()))->modify('-' . $retention . ' days')->format('Y-m-d H:i:s');
+        $old = get_posts([
+            'post_type' => CPT_ORDER,
+            'post_status' => 'any',
+            'posts_per_page' => 200,
+            'date_query' => [['before' => $before]],
+            'fields' => 'ids',
+        ]);
+        foreach ($old as $id) {
+            wp_trash_post((int)$id);
+        }
+    }
+
+    private function order_rate_limit_key(): string {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        return 'hsp_order_rate_' . md5((string)$ip);
+    }
+
+    private function order_rate_limited(): bool {
+        $key = $this->order_rate_limit_key();
+        $count = (int)get_transient($key);
+        if ($count >= 20) {
+            return true;
+        }
+        set_transient($key, $count + 1, MINUTE_IN_SECONDS * 10);
+        return false;
+    }
+
+    private function create_order(array $payload): array {
+        $settings = $this->get_order_settings();
+        $menu_date = sanitize_text_field((string)($payload['menu_date'] ?? ''));
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $menu_date)) {
+            return ['error' => 'Neplatné datum menu.'];
+        }
+        if (!$this->can_order_for_date($menu_date, $settings)) {
+            return ['error' => 'Objednávky pro zvolené datum jsou uzavřeny.'];
+        }
+
+        $day_items = $this->get_day_menu_payload($menu_date);
+        if (empty($day_items)) {
+            return ['error' => 'Pro zvolené datum není dostupné menu.'];
+        }
+
+        $selected = isset($payload['items']) && is_array($payload['items']) ? $payload['items'] : [];
+        $items = [];
+        $subtotal = 0.0;
+        $max_item_qty = max(0, (int)($settings['max_item_qty'] ?? 0));
+
+        foreach ($selected as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $title = sanitize_text_field((string)($row['title'] ?? ''));
+            $qty = max(1, (int)($row['quantity'] ?? 1));
+            if ($max_item_qty > 0) {
+                $qty = min($max_item_qty, $qty);
+            }
+            $found = null;
+            foreach ($day_items as $item) {
+                if ($item['title'] === $title) {
+                    $found = $item;
+                    break;
+                }
+            }
+            if (!$found) {
+                continue;
+            }
+            $price_num = (float)preg_replace('/[^0-9.,-]/', '', str_replace(',', '.', (string)($found['price'] ?? '0')));
+            $line_total = max(0, $price_num) * $qty;
+            $subtotal += $line_total;
+            $items[] = [
+                'type' => $found['type'],
+                'meal_id' => (int)$found['meal_id'],
+                'title' => $found['title'],
+                'quantity' => $qty,
+                'price' => (string)($found['price'] ?? ''),
+                'sides' => $found['sides'] ?? [],
+                'allergens' => $found['allergens'] ?? [],
+                'note' => sanitize_text_field((string)($row['note'] ?? '')),
+            ];
+        }
+
+        if (empty($items)) {
+            return ['error' => 'Objednávka neobsahuje žádné položky.'];
+        }
+
+        $today_count = 0;
+        if (!empty($settings['max_orders_per_day'])) {
+            $existing = get_posts([
+                'post_type' => CPT_ORDER,
+                'post_status' => 'any',
+                'posts_per_page' => 1,
+                'meta_key' => 'menu_date',
+                'meta_value' => $menu_date,
+                'fields' => 'ids',
+            ]);
+            $today_count = count($existing);
+            if ($today_count >= (int)$settings['max_orders_per_day']) {
+                return ['error' => 'Byl dosažen maximální počet objednávek pro tento den.'];
+            }
+        }
+
+        $delivery_type = sanitize_key((string)($payload['delivery_type'] ?? 'pickup'));
+        if (!in_array($delivery_type, ['delivery', 'pickup'], true)) {
+            $delivery_type = 'pickup';
+        }
+        $address = sanitize_text_field((string)($payload['delivery_address'] ?? ''));
+        if ($delivery_type === 'delivery' && $address === '') {
+            return ['error' => 'Pro rozvoz je potřeba vyplnit adresu.'];
+        }
+
+        $gdpr_accepted = !empty($payload['gdpr_accepted']);
+        if (!$gdpr_accepted) {
+            return ['error' => 'Pro odeslání je nutný souhlas GDPR.'];
+        }
+
+        $delivery_fee = $this->compute_delivery_fee($settings, $delivery_type, $address);
+        if (($settings['delivery_fee_type'] ?? '') === 'free_from') {
+            $limit = (float)str_replace(',', '.', (string)($settings['delivery_fee_value'] ?? '0'));
+            $delivery_fee = $subtotal >= $limit ? 0.0 : $delivery_fee;
+        }
+        $total = $subtotal + $delivery_fee;
+
+        $seq = (int)get_option('hsp_order_sequence', 1000) + 1;
+        update_option('hsp_order_sequence', $seq, false);
+        $order_number = 'HSP-' . $seq;
+
+        $post_id = wp_insert_post([
+            'post_type' => CPT_ORDER,
+            'post_status' => 'hsp_new',
+            'post_title' => $order_number,
+        ], true);
+        if (is_wp_error($post_id)) {
+            return ['error' => 'Objednávku se nepodařilo uložit.'];
+        }
+
+        $meta = [
+            'order_number' => $order_number,
+            'order_date_created' => current_time('mysql'),
+            'menu_date' => $menu_date,
+            'time_window' => sanitize_text_field((string)($payload['time_window'] ?? '')),
+            'customer_name' => sanitize_text_field((string)($payload['customer_name'] ?? '')),
+            'customer_phone' => sanitize_text_field((string)($payload['customer_phone'] ?? '')),
+            'customer_email' => sanitize_email((string)($payload['customer_email'] ?? '')),
+            'delivery_type' => $delivery_type,
+            'delivery_address' => $address,
+            'note' => sanitize_textarea_field((string)($payload['note'] ?? '')),
+            'items' => $items,
+            'totals' => ['subtotal' => round($subtotal, 2), 'delivery_fee' => round($delivery_fee, 2), 'total' => round($total, 2)],
+            'consents' => [
+                'gdpr_accepted' => true,
+                'gdpr_text_version' => (string)($settings['gdpr_text'] ?? ''),
+            ],
+            'status_history' => [[
+                'status' => 'hsp_new',
+                'time' => current_time('mysql'),
+                'by' => get_current_user_id(),
+            ]],
+        ];
+
+        foreach ($meta as $k => $v) {
+            update_post_meta($post_id, $k, $v);
+        }
+
+        $ops_email = (string)($settings['notification_email'] ?? '');
+        $customer_email = (string)$meta['customer_email'];
+        $repl = ['{order_number}' => $order_number, '{menu_date}' => $menu_date, '#{order_number}' => $order_number];
+        if (is_email($ops_email)) {
+            wp_mail($ops_email, 'Nová objednávka ' . $order_number, strtr((string)($settings['ops_email_template'] ?? ''), $repl));
+        }
+        if (is_email($customer_email)) {
+            wp_mail($customer_email, 'Potvrzení objednávky ' . $order_number, strtr((string)($settings['customer_email_template'] ?? ''), $repl));
+        }
+
+        return ['post_id' => $post_id, 'order_number' => $order_number, 'total' => $total];
+    }
+
+    public function ajax_submit_order() {
+        $settings = $this->get_order_settings();
+        if (empty($settings['enabled'])) {
+            wp_send_json_error(['message' => 'Objednávkový systém je vypnutý.'], 403);
+        }
+        if (!isset($_POST['nonce']) || !wp_verify_nonce(sanitize_text_field((string)$_POST['nonce']), 'hsp_order_submit')) {
+            wp_send_json_error(['message' => 'Neplatný bezpečnostní token.'], 403);
+        }
+        if ($this->order_rate_limited()) {
+            wp_send_json_error(['message' => 'Příliš mnoho požadavků, zkuste to za chvíli.'], 429);
+        }
+        $payload_raw = isset($_POST['payload']) ? wp_unslash($_POST['payload']) : '';
+        $payload = json_decode((string)$payload_raw, true);
+        if (!is_array($payload)) {
+            wp_send_json_error(['message' => 'Neplatná data objednávky.'], 400);
+        }
+        $result = $this->create_order($payload);
+        if (!empty($result['error'])) {
+            wp_send_json_error(['message' => $result['error']], 400);
+        }
+        wp_send_json_success(['order_number' => $result['order_number']]);
+    }
+
+    public function shortcode_order_form($atts = []): string {
+        $settings = $this->get_order_settings();
+        if (empty($settings['enabled'])) {
+            return '<p><em>Objednávkový systém je aktuálně vypnutý.</em></p>';
+        }
+
+        $a = shortcode_atts(['mode' => 'week'], $atts, 'hsp_order_form');
+        $dates = $this->get_next_workdays(($a['mode'] === 'day') ? 1 : 5);
+        $menu_map = [];
+        foreach ($dates as $date) {
+            $menu_map[$date] = $this->get_day_menu_payload($date);
+        }
+
+        ob_start();
+        echo '<div class="hsp-order-form" id="hsp-order-form">';
+        echo '<label>Datum <select id="hsp-order-date">';
+        foreach ($dates as $d) {
+            $disabled = $this->can_order_for_date($d, $settings) ? '' : ' disabled';
+            echo '<option value="' . esc_attr($d) . '"' . $disabled . '>' . esc_html(wp_date('j. n. Y', strtotime($d))) . '</option>';
+        }
+        echo '</select></label>';
+        echo '<div id="hsp-order-items"></div>';
+        echo '<h4>Kontaktní údaje</h4>';
+        echo '<input type="text" id="hsp-order-name" placeholder="Jméno" /> ';
+        echo '<input type="tel" id="hsp-order-phone" placeholder="Telefon" /> ';
+        echo '<input type="email" id="hsp-order-email" placeholder="Email (volitelně)" />';
+        echo '<p><label><input type="radio" name="hsp-order-delivery" value="pickup" checked> Osobní odběr</label> <label><input type="radio" name="hsp-order-delivery" value="delivery"> Rozvoz</label></p>';
+        echo '<input type="text" id="hsp-order-address" placeholder="Adresa rozvozu" />';
+        echo '<textarea id="hsp-order-note" placeholder="Poznámka"></textarea>';
+        echo '<p><label><input type="checkbox" id="hsp-order-gdpr"> ' . esc_html((string)($settings['gdpr_text'] ?? 'Souhlasím se zpracováním osobních údajů.')) . '</label></p>';
+        echo '<button type="button" class="button button-primary" id="hsp-order-submit">Odeslat objednávku</button>';
+        echo '<p id="hsp-order-msg"></p>';
+        echo '</div>';
+
+        wp_enqueue_script('jquery');
+        $config_js = 'window.HSP_ORDER=' . wp_json_encode([
+            'ajax' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('hsp_order_submit'),
+            'menu' => $menu_map,
+            'settings' => [
+                'delivery_mode' => $settings['delivery_mode'] ?? 'both',
+            ],
+        ]) . ';';
+        $script_js = <<<'JS'
+(function(){
+  if(!window.jQuery||!window.HSP_ORDER){return;}
+  var $=window.jQuery;
+  var menu=HSP_ORDER.menu||{};
+  function esc(v){return String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function render(){
+    var d=$("#hsp-order-date").val();
+    var items=menu[d]||[];
+    var html="";
+    if(!items.length){
+      html="<p><em>Pro tento den není menu.</em></p>";
+    }else{
+      html+="<ul>";
+      items.forEach(function(it,idx){
+        html+="<li><label><input type='checkbox' class='hsp-order-item' data-title='"+esc(it.title)+"' data-index='"+idx+"'> "+esc(it.title)+" ("+esc(it.price||"bez ceny")+")</label> <input type='number' min='1' value='1' class='hsp-order-qty' data-index='"+idx+"' style='width:70px'></li>";
+      });
+      html+="</ul>";
+    }
+    $("#hsp-order-items").html(html);
+  }
+  $(document).on("change", "#hsp-order-date", render);
+  render();
+  $(document).on("click", "#hsp-order-submit", function(){
+    var d=$("#hsp-order-date").val();
+    var items=[];
+    $(".hsp-order-item:checked").each(function(){
+      var idx=$(this).data("index");
+      var qty=parseInt($(".hsp-order-qty[data-index='"+idx+"']").val(),10)||1;
+      items.push({title:$(this).data("title"),quantity:qty});
+    });
+    var payload={
+      menu_date:d,
+      items:items,
+      customer_name:$("#hsp-order-name").val(),
+      customer_phone:$("#hsp-order-phone").val(),
+      customer_email:$("#hsp-order-email").val(),
+      delivery_type:$("input[name='hsp-order-delivery']:checked").val(),
+      delivery_address:$("#hsp-order-address").val(),
+      note:$("#hsp-order-note").val(),
+      gdpr_accepted:$("#hsp-order-gdpr").is(":checked")
+    };
+    $.post(HSP_ORDER.ajax,{action:"hsp_submit_order",nonce:HSP_ORDER.nonce,payload:JSON.stringify(payload)})
+      .done(function(res){
+        if(res&&res.success){
+          $("#hsp-order-msg").text("Objednávka přijata: "+res.data.order_number);
+        }else{
+          $("#hsp-order-msg").text((res&&res.data&&res.data.message)?res.data.message:"Objednávku se nepodařilo odeslat.");
+        }
+      })
+      .fail(function(xhr){
+        var m="Objednávku se nepodařilo odeslat.";
+        if(xhr&&xhr.responseJSON&&xhr.responseJSON.data&&xhr.responseJSON.data.message){m=xhr.responseJSON.data.message;}
+        $("#hsp-order-msg").text(m);
+      });
+  });
+})();
+JS;
+        wp_add_inline_script('jquery', $config_js . $script_js, 'after');
+
+
+        return ob_get_clean();
+    }
+
+    public function shortcode_my_orders(): string {
+        $phone = isset($_GET['hsp_phone']) ? sanitize_text_field(wp_unslash($_GET['hsp_phone'])) : '';
+        $html = '<div class="hsp-my-orders">';
+        $html .= '<form method="get"><label>Telefon <input type="text" name="hsp_phone" value="' . esc_attr($phone) . '"></label> <button class="button">Zobrazit</button></form>';
+        if ($phone !== '') {
+            $orders = get_posts([
+                'post_type' => CPT_ORDER,
+                'posts_per_page' => 20,
+                'post_status' => 'any',
+                'meta_key' => 'customer_phone',
+                'meta_value' => $phone,
+            ]);
+            if ($orders) {
+                $html .= '<ul>';
+                foreach ($orders as $order) {
+                    $menu_date = (string)get_post_meta($order->ID, 'menu_date', true);
+                    $total = get_post_meta($order->ID, 'totals', true);
+                    $total_price = is_array($total) ? (string)($total['total'] ?? '') : '';
+                    $html .= '<li><strong>' . esc_html($order->post_title) . '</strong> – ' . esc_html($menu_date) . ' – ' . esc_html($this->format_price_for_display($total_price)) . '</li>';
+                }
+                $html .= '</ul>';
+            } else {
+                $html .= '<p><em>Nebyly nalezeny žádné objednávky.</em></p>';
+            }
+        }
+        $html .= '</div>';
+        return $html;
+    }
+
+    public function render_orders_admin_page() {
+        if (!current_user_can('edit_posts')) {
+            wp_die();
+        }
+
+        $selected_date = isset($_GET['menu_date']) ? sanitize_text_field(wp_unslash($_GET['menu_date'])) : '';
+        $meta_query = [];
+        if ($selected_date !== '') {
+            $meta_query[] = ['key' => 'menu_date', 'value' => $selected_date];
+        }
+        $orders = get_posts([
+            'post_type' => CPT_ORDER,
+            'posts_per_page' => 200,
+            'post_status' => 'any',
+            'meta_query' => $meta_query,
+        ]);
+
+        echo '<div class="wrap"><h1>Objednávky</h1>';
+        echo '<p><a class="button" href="' . esc_url(admin_url('admin-post.php?action=hsp_order_export_delivery_csv')) . '">Export rozvoz CSV</a> <a class="button" href="' . esc_url(admin_url('admin-post.php?action=hsp_order_export_kitchen_csv')) . '">Export kuchyň CSV</a></p>';
+        echo '<table class="widefat striped"><thead><tr><th>Číslo</th><th>Datum menu</th><th>Jméno</th><th>Telefon</th><th>Typ</th><th>Cena</th><th>Stav</th><th>Vytvořeno</th></tr></thead><tbody>';
+        foreach ($orders as $order) {
+            $menu_date = (string)get_post_meta($order->ID, 'menu_date', true);
+            $name = (string)get_post_meta($order->ID, 'customer_name', true);
+            $phone = (string)get_post_meta($order->ID, 'customer_phone', true);
+            $dtype = (string)get_post_meta($order->ID, 'delivery_type', true);
+            $totals = get_post_meta($order->ID, 'totals', true);
+            $total_price = is_array($totals) ? (string)($totals['total'] ?? '') : '';
+            $status = $order->post_status;
+            echo '<tr>';
+            echo '<td><a href="' . esc_url(admin_url('admin.php?page=hospoda-orders&order_id=' . $order->ID)) . '">' . esc_html($order->post_title) . '</a></td>';
+            echo '<td>' . esc_html($menu_date) . '</td><td>' . esc_html($name) . '</td><td>' . esc_html($phone) . '</td><td>' . esc_html($dtype) . '</td><td>' . esc_html($this->format_price_for_display($total_price)) . '</td><td>' . esc_html($this->get_order_statuses()[$status] ?? $status) . '</td><td>' . esc_html($order->post_date) . '</td>';
+            echo '</tr>';
+        }
+        echo '</tbody></table>';
+
+        $order_id = isset($_GET['order_id']) ? (int)$_GET['order_id'] : 0;
+        if ($order_id > 0) {
+            $order_post = get_post($order_id);
+            if ($order_post && $order_post->post_type === CPT_ORDER) {
+                $items = get_post_meta($order_id, 'items', true);
+                $address = (string)get_post_meta($order_id, 'delivery_address', true);
+                $note = (string)get_post_meta($order_id, 'note', true);
+                echo '<hr><h2>Detail objednávky ' . esc_html($order_post->post_title) . '</h2>';
+                echo '<p><strong>Adresa:</strong> ' . esc_html($address) . '</p><p><strong>Poznámka:</strong> ' . esc_html($note) . '</p>';
+                if (is_array($items) && !empty($items)) {
+                    echo '<ul>';
+                    foreach ($items as $item) {
+                        echo '<li>' . esc_html((string)($item['title'] ?? '')) . ' × ' . esc_html((string)($item['quantity'] ?? 1)) . '</li>';
+                    }
+                    echo '</ul>';
+                }
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+                wp_nonce_field('hsp_order_update_status_' . $order_id);
+                echo '<input type="hidden" name="action" value="hsp_order_update_status"><input type="hidden" name="order_id" value="' . esc_attr((string)$order_id) . '">';
+                echo '<select name="new_status">';
+                foreach ($this->get_order_statuses() as $k => $label) {
+                    echo '<option value="' . esc_attr($k) . '"' . selected($order_post->post_status, $k, false) . '>' . esc_html($label) . '</option>';
+                }
+                echo '</select> <button class="button button-primary">Uložit stav</button></form>';
+            }
+        }
+
+        echo '</div>';
+    }
+
+    public function handle_order_status_update() {
+        if (!current_user_can('edit_posts')) {
+            wp_die();
+        }
+        $order_id = isset($_POST['order_id']) ? (int)$_POST['order_id'] : 0;
+        check_admin_referer('hsp_order_update_status_' . $order_id);
+        $new_status = sanitize_key((string)($_POST['new_status'] ?? ''));
+        $allowed = array_keys($this->get_order_statuses());
+        if ($order_id > 0 && in_array($new_status, $allowed, true)) {
+            wp_update_post(['ID' => $order_id, 'post_status' => $new_status]);
+            $history = get_post_meta($order_id, 'status_history', true);
+            if (!is_array($history)) {
+                $history = [];
+            }
+            $history[] = ['status' => $new_status, 'time' => current_time('mysql'), 'by' => get_current_user_id()];
+            update_post_meta($order_id, 'status_history', $history);
+        }
+        wp_redirect(admin_url('admin.php?page=hospoda-orders&order_id=' . $order_id));
+        exit;
+    }
+
+    public function handle_order_export_delivery_csv() {
+        if (!current_user_can('edit_posts')) {
+            wp_die();
+        }
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename=rozvoz.csv');
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['Objednávka', 'Datum menu', 'Jméno', 'Telefon', 'Adresa', 'Čas', 'Položky']);
+        $orders = get_posts(['post_type' => CPT_ORDER, 'posts_per_page' => 500, 'post_status' => 'any']);
+        foreach ($orders as $order) {
+            $items = get_post_meta($order->ID, 'items', true);
+            $item_label = [];
+            if (is_array($items)) {
+                foreach ($items as $i) {
+                    $item_label[] = (string)($i['title'] ?? '') . ' x' . (int)($i['quantity'] ?? 1);
+                }
+            }
+            fputcsv($out, [
+                $order->post_title,
+                get_post_meta($order->ID, 'menu_date', true),
+                get_post_meta($order->ID, 'customer_name', true),
+                get_post_meta($order->ID, 'customer_phone', true),
+                get_post_meta($order->ID, 'delivery_address', true),
+                get_post_meta($order->ID, 'time_window', true),
+                implode('; ', $item_label),
+            ]);
+        }
+        fclose($out);
+        exit;
+    }
+
+    public function handle_order_export_kitchen_csv() {
+        if (!current_user_can('edit_posts')) {
+            wp_die();
+        }
+        $aggregate = [];
+        $orders = get_posts(['post_type' => CPT_ORDER, 'posts_per_page' => 500, 'post_status' => 'any']);
+        foreach ($orders as $order) {
+            $menu_date = (string)get_post_meta($order->ID, 'menu_date', true);
+            $items = get_post_meta($order->ID, 'items', true);
+            if (!is_array($items)) {
+                continue;
+            }
+            foreach ($items as $item) {
+                $title = (string)($item['title'] ?? '');
+                $qty = (int)($item['quantity'] ?? 1);
+                if ($title === '') {
+                    continue;
+                }
+                if (!isset($aggregate[$menu_date])) {
+                    $aggregate[$menu_date] = [];
+                }
+                if (!isset($aggregate[$menu_date][$title])) {
+                    $aggregate[$menu_date][$title] = 0;
+                }
+                $aggregate[$menu_date][$title] += $qty;
+            }
+        }
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename=kuchyn.csv');
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['Datum menu', 'Položka', 'Počet porcí']);
+        foreach ($aggregate as $date => $rows) {
+            foreach ($rows as $title => $qty) {
+                fputcsv($out, [$date, $title, $qty]);
+            }
+        }
+        fclose($out);
+        exit;
     }
 
     /**
