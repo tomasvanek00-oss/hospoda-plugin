@@ -121,6 +121,7 @@ class Hospoda_Plugin {
         add_action('admin_post_hospoda_export_week_pdf', [$this,'handle_export_week_pdf']);
         add_action('admin_post_hsp_order_export_delivery_csv', [$this,'handle_order_export_delivery_csv']);
         add_action('admin_post_hsp_order_export_kitchen_csv', [$this,'handle_order_export_kitchen_csv']);
+        add_action('admin_post_hsp_order_export_orders_pdf', [$this,'handle_order_export_orders_pdf']);
         add_action('admin_post_hsp_order_update_status', [$this,'handle_order_status_update']);
         add_shortcode('poledni_menu', [$this,'shortcode_menu']);
         add_shortcode('hsp_order_form', [$this,'shortcode_order_form']);
@@ -4369,26 +4370,131 @@ JS;
         return $html;
     }
 
+
+    private function get_orders_filter_context(array $source = []): array {
+        if (empty($source)) {
+            $source = $_GET;
+        }
+
+        $mode = isset($source['filter_mode']) ? sanitize_key((string) wp_unslash($source['filter_mode'])) : 'day';
+        if (!in_array($mode, ['day', 'week'], true)) {
+            $mode = 'day';
+        }
+
+        $today = wp_date('Y-m-d', current_time('timestamp'));
+        $day_date = isset($source['filter_day']) ? sanitize_text_field((string) wp_unslash($source['filter_day'])) : $today;
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day_date)) {
+            $day_date = $today;
+        }
+
+        $week_start = isset($source['filter_week']) ? sanitize_text_field((string) wp_unslash($source['filter_week'])) : $day_date;
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $week_start)) {
+            $week_start = $day_date;
+        }
+        $week_ts = strtotime($week_start);
+        if ($week_ts === false) {
+            $week_ts = strtotime($today);
+        }
+        $dow = (int) wp_date('N', $week_ts);
+        $monday_ts = strtotime('-' . ($dow - 1) . ' days', $week_ts);
+        if ($monday_ts === false) {
+            $monday_ts = $week_ts;
+        }
+        $week_start = wp_date('Y-m-d', $monday_ts);
+        $week_end = wp_date('Y-m-d', strtotime('+6 days', $monday_ts));
+
+        if ($mode === 'day') {
+            return [
+                'mode' => 'day',
+                'day_date' => $day_date,
+                'week_start' => $week_start,
+                'start' => $day_date,
+                'end' => $day_date,
+                'label' => 'Den ' . wp_date('j. n. Y', strtotime($day_date)),
+            ];
+        }
+
+        return [
+            'mode' => 'week',
+            'day_date' => $day_date,
+            'week_start' => $week_start,
+            'start' => $week_start,
+            'end' => $week_end,
+            'label' => 'Týden ' . wp_date('j. n. Y', strtotime($week_start)) . ' – ' . wp_date('j. n. Y', strtotime($week_end)),
+        ];
+    }
+
+    private function query_orders_for_context(array $context, int $limit = 500): array {
+        $meta_query = [];
+        if (($context['mode'] ?? 'day') === 'day') {
+            $meta_query[] = ['key' => 'menu_date', 'value' => (string)($context['day_date'] ?? ''), 'compare' => '='];
+        } else {
+            $meta_query[] = [
+                'key' => 'menu_date',
+                'value' => [(string)($context['start'] ?? ''), (string)($context['end'] ?? '')],
+                'compare' => 'BETWEEN',
+                'type' => 'DATE',
+            ];
+        }
+
+        return get_posts([
+            'post_type' => CPT_ORDER,
+            'posts_per_page' => $limit,
+            'post_status' => 'any',
+            'meta_query' => $meta_query,
+            'orderby' => 'meta_value',
+            'meta_key' => 'menu_date',
+            'order' => 'ASC',
+        ]);
+    }
+
+    private function get_orders_export_url(string $action, array $context): string {
+        $args = [
+            'action' => $action,
+            'filter_mode' => (string)($context['mode'] ?? 'day'),
+            'filter_day' => (string)($context['day_date'] ?? ''),
+            'filter_week' => (string)($context['week_start'] ?? ''),
+        ];
+        return wp_nonce_url(admin_url('admin-post.php?' . http_build_query($args)), 'hsp_order_exports');
+    }
+
     public function render_orders_admin_page() {
         if (!current_user_can('edit_posts')) {
             wp_die();
         }
 
-        $selected_date = isset($_GET['menu_date']) ? sanitize_text_field(wp_unslash($_GET['menu_date'])) : '';
-        $meta_query = [];
-        if ($selected_date !== '') {
-            $meta_query[] = ['key' => 'menu_date', 'value' => $selected_date];
-        }
-        $orders = get_posts([
-            'post_type' => CPT_ORDER,
-            'posts_per_page' => 200,
-            'post_status' => 'any',
-            'meta_query' => $meta_query,
-        ]);
+        $context = $this->get_orders_filter_context($_GET);
+        $orders = $this->query_orders_for_context($context, 300);
+
+        $day_url = admin_url('admin.php?page=hospoda-orders&filter_mode=day&filter_day=' . rawurlencode((string)$context['day_date']));
+        $week_url = admin_url('admin.php?page=hospoda-orders&filter_mode=week&filter_week=' . rawurlencode((string)$context['week_start']));
+        $detail_suffix = '&filter_mode=' . rawurlencode((string)$context['mode']) . '&filter_day=' . rawurlencode((string)$context['day_date']) . '&filter_week=' . rawurlencode((string)$context['week_start']);
 
         echo '<div class="wrap"><h1>Objednávky</h1>';
-        echo '<p><a class="button" href="' . esc_url(admin_url('admin-post.php?action=hsp_order_export_delivery_csv')) . '">Export rozvoz CSV</a> <a class="button" href="' . esc_url(admin_url('admin-post.php?action=hsp_order_export_kitchen_csv')) . '">Export kuchyň CSV</a></p>';
+        echo '<form method="get" style="margin:10px 0 16px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">';
+        echo '<input type="hidden" name="page" value="hospoda-orders">';
+        echo '<label><strong>Zobrazení</strong><br><select name="filter_mode" id="hsp-order-filter-mode">';
+        echo '<option value="day"' . selected($context['mode'], 'day', false) . '>Po dnech</option>';
+        echo '<option value="week"' . selected($context['mode'], 'week', false) . '>Po týdnech</option>';
+        echo '</select></label>';
+        echo '<label id="hsp-order-filter-day"><strong>Den</strong><br><input type="date" name="filter_day" value="' . esc_attr((string)$context['day_date']) . '"></label>';
+        echo '<label id="hsp-order-filter-week"><strong>Týden od</strong><br><input type="date" name="filter_week" value="' . esc_attr((string)$context['week_start']) . '"></label>';
+        echo '<button class="button button-primary">Použít filtr</button>';
+        echo '</form>';
+        echo '<p><strong>Aktuální filtr:</strong> ' . esc_html((string)$context['label']) . '</p>';
+
+        echo '<p>';
+        echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_delivery_csv', $context)) . '">Export rozvoz CSV</a> ';
+        echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_kitchen_csv', $context)) . '">Export kuchyň CSV</a> ';
+        echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_orders_pdf', $context)) . '">Export PDF</a>';
+        echo '</p>';
+
+        echo '<script>(function(){var m=document.getElementById("hsp-order-filter-mode"),d=document.getElementById("hsp-order-filter-day"),w=document.getElementById("hsp-order-filter-week");if(!m||!d||!w)return;function t(){var isWeek=m.value==="week";d.style.display=isWeek?"none":"inline-block";w.style.display=isWeek?"inline-block":"none";}m.addEventListener("change",t);t();})();</script>';
+
         echo '<table class="widefat striped"><thead><tr><th>Číslo</th><th>Datum menu</th><th>Jméno</th><th>Telefon</th><th>Typ</th><th>Cena</th><th>Stav</th><th>Vytvořeno</th></tr></thead><tbody>';
+        if (empty($orders)) {
+            echo '<tr><td colspan="8"><em>Pro zvolený filtr nejsou objednávky.</em></td></tr>';
+        }
         foreach ($orders as $order) {
             $menu_date = (string)get_post_meta($order->ID, 'menu_date', true);
             $name = (string)get_post_meta($order->ID, 'customer_name', true);
@@ -4398,7 +4504,7 @@ JS;
             $total_price = is_array($totals) ? (string)($totals['total'] ?? '') : '';
             $status = $order->post_status;
             echo '<tr>';
-            echo '<td><a href="' . esc_url(admin_url('admin.php?page=hospoda-orders&order_id=' . $order->ID)) . '">' . esc_html($order->post_title) . '</a></td>';
+            echo '<td><a href="' . esc_url(admin_url('admin.php?page=hospoda-orders&order_id=' . $order->ID . $detail_suffix)) . '">' . esc_html($order->post_title) . '</a></td>';
             echo '<td>' . esc_html($menu_date) . '</td><td>' . esc_html($name) . '</td><td>' . esc_html($phone) . '</td><td>' . esc_html($dtype) . '</td><td>' . esc_html($this->format_price_for_display($total_price)) . '</td><td>' . esc_html($this->get_order_statuses()[$status] ?? $status) . '</td><td>' . esc_html($order->post_date) . '</td>';
             echo '</tr>';
         }
@@ -4416,7 +4522,8 @@ JS;
                 if (is_array($items) && !empty($items)) {
                     echo '<ul>';
                     foreach ($items as $item) {
-                        echo '<li>' . esc_html((string)($item['title'] ?? '')) . ' × ' . esc_html((string)($item['quantity'] ?? 1)) . '</li>';
+                        $lineDate = !empty($item['menu_date']) ? (' [' . $item['menu_date'] . ']') : '';
+                        echo '<li>' . esc_html((string)($item['title'] ?? '') . $lineDate) . ' × ' . esc_html((string)($item['quantity'] ?? 1)) . '</li>';
                     }
                     echo '</ul>';
                 }
@@ -4459,17 +4566,24 @@ JS;
         if (!current_user_can('edit_posts')) {
             wp_die();
         }
+        check_admin_referer('hsp_order_exports');
+
+        $context = $this->get_orders_filter_context($_GET);
+        $orders = $this->query_orders_for_context($context, 500);
+
         header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename=rozvoz.csv');
+        header('Content-Disposition: attachment; filename=rozvoz-' . $context['start'] . '-' . $context['end'] . '.csv');
         $out = fopen('php://output', 'w');
+        fputcsv($out, ['Filtr', $context['label']]);
         fputcsv($out, ['Objednávka', 'Datum menu', 'Jméno', 'Telefon', 'Adresa', 'Čas', 'Položky']);
-        $orders = get_posts(['post_type' => CPT_ORDER, 'posts_per_page' => 500, 'post_status' => 'any']);
         foreach ($orders as $order) {
             $items = get_post_meta($order->ID, 'items', true);
             $item_label = [];
             if (is_array($items)) {
                 foreach ($items as $i) {
-                    $item_label[] = (string)($i['title'] ?? '') . ' x' . (int)($i['quantity'] ?? 1);
+                    $lineDate = (string)($i['menu_date'] ?? '');
+                    $prefix = $lineDate !== '' ? ($lineDate . ': ') : '';
+                    $item_label[] = $prefix . (string)($i['title'] ?? '') . ' x' . (int)($i['quantity'] ?? 1);
                 }
             }
             fputcsv($out, [
@@ -4490,15 +4604,18 @@ JS;
         if (!current_user_can('edit_posts')) {
             wp_die();
         }
+        check_admin_referer('hsp_order_exports');
+
+        $context = $this->get_orders_filter_context($_GET);
         $aggregate = [];
-        $orders = get_posts(['post_type' => CPT_ORDER, 'posts_per_page' => 500, 'post_status' => 'any']);
+        $orders = $this->query_orders_for_context($context, 500);
         foreach ($orders as $order) {
-            $menu_date = (string)get_post_meta($order->ID, 'menu_date', true);
             $items = get_post_meta($order->ID, 'items', true);
             if (!is_array($items)) {
                 continue;
             }
             foreach ($items as $item) {
+                $menu_date = (string)($item['menu_date'] ?? get_post_meta($order->ID, 'menu_date', true));
                 $title = (string)($item['title'] ?? '');
                 $qty = (int)($item['quantity'] ?? 1);
                 if ($title === '') {
@@ -4515,8 +4632,9 @@ JS;
         }
 
         header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename=kuchyn.csv');
+        header('Content-Disposition: attachment; filename=kuchyn-' . $context['start'] . '-' . $context['end'] . '.csv');
         $out = fopen('php://output', 'w');
+        fputcsv($out, ['Filtr', $context['label']]);
         fputcsv($out, ['Datum menu', 'Položka', 'Počet porcí']);
         foreach ($aggregate as $date => $rows) {
             foreach ($rows as $title => $qty) {
@@ -4527,6 +4645,64 @@ JS;
         exit;
     }
 
+    public function handle_order_export_orders_pdf() {
+        if (!current_user_can('edit_posts')) {
+            wp_die();
+        }
+        check_admin_referer('hsp_order_exports');
+
+        $context = $this->get_orders_filter_context($_GET);
+        $orders = $this->query_orders_for_context($context, 250);
+
+        require_once __DIR__ . '/includes/class-simple-pdf.php';
+        $pdf = new Simple_Pdf();
+        $pdf->set_title('Objednávky - ' . $context['label']);
+        $pdf->add_text('Objednávky (' . $context['label'] . ')', ['font' => 'F2', 'size' => 15, 'spacing_after' => 10]);
+
+        if (empty($orders)) {
+            $pdf->add_text('Pro zvolený filtr nejsou objednávky.', ['size' => 11]);
+        }
+
+        foreach ($orders as $order) {
+            $menu_date = (string)get_post_meta($order->ID, 'menu_date', true);
+            $name = (string)get_post_meta($order->ID, 'customer_name', true);
+            $phone = (string)get_post_meta($order->ID, 'customer_phone', true);
+            $address = (string)get_post_meta($order->ID, 'delivery_address', true);
+            $totals = get_post_meta($order->ID, 'totals', true);
+            $total_price = is_array($totals) ? (string)($totals['total'] ?? '') : '';
+            $items = get_post_meta($order->ID, 'items', true);
+
+            $pdf->add_text((string)$order->post_title . ' | ' . $menu_date . ' | ' . $name . ' | ' . $phone, ['font' => 'F2', 'size' => 11, 'spacing_after' => 3]);
+            if ($address !== '') {
+                $pdf->add_text('Adresa: ' . $address, ['size' => 10, 'spacing_after' => 2]);
+            }
+            if (is_array($items)) {
+                foreach ($items as $item) {
+                    $lineDate = !empty($item['menu_date']) ? ('[' . $item['menu_date'] . '] ') : '';
+                    $pdf->add_text('• ' . $lineDate . (string)($item['title'] ?? '') . ' x' . (int)($item['quantity'] ?? 1), ['size' => 10, 'indent' => 8, 'spacing_after' => 1]);
+                }
+            }
+            $priceLabel = $this->format_price_for_display($total_price);
+            if ($priceLabel !== '') {
+                $pdf->add_text('Celkem: ' . $priceLabel, ['size' => 10, 'spacing_after' => 4]);
+            }
+            $pdf->add_spacer(5);
+        }
+
+        $content = $pdf->output();
+        if (!headers_sent()) {
+            nocache_headers();
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="objednavky-' . $context['start'] . '-' . $context['end'] . '.pdf"');
+            header('Content-Length: ' . strlen($content));
+        }
+        echo $content;
+        exit;
+    }
+
+    /**
+     * Sloupce v přehledu CPT Denní menu (archiv)
+     */
     /**
      * Shortcode [poledni_menu] – den nebo celý týden
      * Použití:
