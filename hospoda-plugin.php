@@ -126,6 +126,7 @@ class Hospoda_Plugin {
         add_shortcode('hsp_order_form', [$this,'shortcode_order_form']);
         add_shortcode('hsp_my_orders', [$this,'shortcode_my_orders']);
         add_shortcode('hsp_order_login', [$this,'shortcode_order_login']);
+        add_shortcode('hsp_order_register', [$this,'shortcode_order_register']);
         add_action('add_meta_boxes', [$this,'add_day_metabox']);
         add_filter('manage_'.CPT_DAY.'_posts_columns', [$this,'day_columns']);
         add_action('manage_'.CPT_DAY.'_posts_custom_column', [$this,'day_columns_content'], 10, 2);
@@ -1209,6 +1210,67 @@ JS;
 
         update_post_meta((int)$new_id, '_hsp_order_login_page', '1');
         update_option('hsp_order_login_page_id', (int)$new_id, false);
+
+        $url = get_permalink((int)$new_id);
+        if (!is_string($url) || $url === '') {
+            return '';
+        }
+
+        return $redirect_url !== '' ? add_query_arg('redirect_to', $redirect_url, $url) : $url;
+    }
+
+    private function get_order_register_url(string $redirect_url = ''): string {
+        $url = $this->ensure_order_register_page($redirect_url);
+        if ($url !== '') {
+            return $url;
+        }
+        return wp_registration_url();
+    }
+
+    private function ensure_order_register_page(string $redirect_url = ''): string {
+        $stored_id = (int) get_option('hsp_order_register_page_id', 0);
+        if ($stored_id > 0) {
+            $post = get_post($stored_id);
+            if ($post instanceof \WP_Post && $post->post_status === 'publish') {
+                $url = get_permalink($stored_id);
+                if (is_string($url) && $url !== '') {
+                    return $redirect_url !== '' ? add_query_arg('redirect_to', $redirect_url, $url) : $url;
+                }
+            }
+        }
+
+        $existing = get_posts([
+            'post_type' => 'page',
+            'posts_per_page' => 1,
+            'post_status' => 'publish',
+            'meta_key' => '_hsp_order_register_page',
+            'meta_value' => '1',
+            'fields' => 'ids',
+        ]);
+
+        if (!empty($existing[0])) {
+            $existing_id = (int) $existing[0];
+            update_option('hsp_order_register_page_id', $existing_id, false);
+            $url = get_permalink($existing_id);
+            if (is_string($url) && $url !== '') {
+                return $redirect_url !== '' ? add_query_arg('redirect_to', $redirect_url, $url) : $url;
+            }
+        }
+
+        $new_id = wp_insert_post([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Registrace pro objednávky',
+            'post_name' => 'registrace-objednavky',
+            'post_content' => '[hsp_order_register]',
+        ], true);
+
+        if (is_wp_error($new_id) || !$new_id) {
+            return '';
+        }
+
+        update_post_meta((int)$new_id, '_hsp_order_register_page', '1');
+        update_option('hsp_order_register_page_id', (int)$new_id, false);
 
         $url = get_permalink((int)$new_id);
         if (!is_string($url) || $url === '') {
@@ -3984,11 +4046,7 @@ JS;
         if ($redirect === '') {
             $redirect = home_url('/');
         }
-        $registration_open = (bool) get_option('users_can_register');
-        $register_url = $registration_open ? wp_registration_url() : '';
-        if ($registration_open && $register_url !== '') {
-            $register_url = add_query_arg('redirect_to', $redirect, $register_url);
-        }
+        $register_url = $this->get_order_register_url($redirect);
 
         if (is_user_logged_in()) {
             return '<p><strong>Jste přihlášen/a.</strong> <a class="button" href="' . esc_url($redirect) . '">Pokračovat na objednávku</a></p>';
@@ -4005,11 +4063,116 @@ JS;
             'label_remember' => 'Pamatovat si mě',
             'label_log_in' => 'Přihlásit se',
         ]);
-        if ($registration_open && $register_url !== '') {
+        if ($register_url !== '') {
             echo '<p class="hsp-order-register">Nemáte účet? <a href="' . esc_url($register_url) . '">Zaregistrujte se</a>.</p>';
         }
         echo '<script>(function(){try{var c=document.cookie||"";if(c.indexOf("wordpress_logged_in_")!==-1){var target=' . wp_json_encode($redirect) . ';if(target){window.location.replace(target);}}}catch(e){}})();</script>';
         echo '</div>';
+        return (string) ob_get_clean();
+    }
+
+    public function shortcode_order_register($atts = []): string {
+        $redirect = isset($_GET['redirect_to']) ? esc_url_raw(wp_unslash($_GET['redirect_to'])) : '';
+        if ($redirect === '') {
+            $redirect = home_url('/');
+        }
+
+        if (is_user_logged_in()) {
+            return '<p><strong>Jste přihlášen/a.</strong> <a class="button" href="' . esc_url($redirect) . '">Pokračovat na objednávku</a></p>';
+        }
+
+        $errors = [];
+        $values = [
+            'email' => '',
+            'name' => '',
+            'phone' => '',
+            'address' => '',
+        ];
+
+        if (isset($_POST['hsp_order_register_submit'])) {
+            check_admin_referer('hsp_order_register');
+
+            $values['email'] = sanitize_email((string) wp_unslash($_POST['reg_email'] ?? ''));
+            $password = (string) wp_unslash($_POST['reg_password'] ?? '');
+            $values['name'] = sanitize_text_field((string) wp_unslash($_POST['reg_name'] ?? ''));
+            $values['phone'] = sanitize_text_field((string) wp_unslash($_POST['reg_phone'] ?? ''));
+            $values['address'] = sanitize_text_field((string) wp_unslash($_POST['reg_address'] ?? ''));
+            $redirect_post = esc_url_raw((string) wp_unslash($_POST['reg_redirect_to'] ?? ''));
+            if ($redirect_post !== '') {
+                $redirect = $redirect_post;
+            }
+
+            if (!is_email($values['email'])) {
+                $errors[] = 'Zadejte platný e-mail.';
+            }
+            if (strlen($password) < 8) {
+                $errors[] = 'Heslo musí mít alespoň 8 znaků.';
+            }
+            if ($values['name'] === '') {
+                $errors[] = 'Jméno je povinné.';
+            }
+            if ($values['phone'] === '') {
+                $errors[] = 'Telefon je povinný.';
+            }
+            if ($values['address'] === '') {
+                $errors[] = 'Adresa je povinná.';
+            }
+            if (email_exists($values['email'])) {
+                $errors[] = 'Tento e-mail je již registrován.';
+            }
+
+            if (empty($errors)) {
+                $username_base = sanitize_user(strstr($values['email'], '@', true) ?: $values['email'], true);
+                if ($username_base === '') {
+                    $username_base = 'uzivatel';
+                }
+                $username = $username_base;
+                $i = 1;
+                while (username_exists($username)) {
+                    $i++;
+                    $username = $username_base . $i;
+                }
+
+                $user_id = wp_create_user($username, $password, $values['email']);
+                if (is_wp_error($user_id)) {
+                    $errors[] = $user_id->get_error_message();
+                } else {
+                    wp_update_user([
+                        'ID' => $user_id,
+                        'display_name' => $values['name'],
+                        'first_name' => $values['name'],
+                    ]);
+                    update_user_meta($user_id, 'hsp_customer_name', $values['name']);
+                    update_user_meta($user_id, 'hsp_customer_phone', $values['phone']);
+                    update_user_meta($user_id, 'hsp_delivery_address', $values['address']);
+
+                    wp_set_current_user($user_id);
+                    wp_set_auth_cookie($user_id, true);
+
+                    wp_safe_redirect($redirect);
+                    exit;
+                }
+            }
+        }
+
+        ob_start();
+        echo '<div class="hsp-order-register-box">';
+        echo '<h3>Registrace zákazníka</h3>';
+        if (!empty($errors)) {
+            echo '<div class="notice notice-error"><p>' . esc_html(implode(' ', $errors)) . '</p></div>';
+        }
+        echo '<form method="post" class="hsp-order-register-form">';
+        wp_nonce_field('hsp_order_register');
+        echo '<input type="hidden" name="reg_redirect_to" value="' . esc_attr($redirect) . '">';
+        echo '<p><label>E-mail<br><input type="email" name="reg_email" required value="' . esc_attr($values['email']) . '" class="regular-text"></label></p>';
+        echo '<p><label>Heslo<br><input type="password" name="reg_password" required class="regular-text"></label></p>';
+        echo '<p><label>Jméno zákazníka<br><input type="text" name="reg_name" required value="' . esc_attr($values['name']) . '" class="regular-text"></label></p>';
+        echo '<p><label>Telefon<br><input type="text" name="reg_phone" required value="' . esc_attr($values['phone']) . '" class="regular-text"></label></p>';
+        echo '<p><label>Adresa<br><input type="text" name="reg_address" required value="' . esc_attr($values['address']) . '" class="regular-text"></label></p>';
+        echo '<p><button type="submit" name="hsp_order_register_submit" value="1" class="button button-primary">Vytvořit účet</button></p>';
+        echo '</form>';
+        echo '</div>';
+
         return (string) ob_get_clean();
     }
 
