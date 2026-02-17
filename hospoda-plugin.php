@@ -1088,6 +1088,7 @@ JS;
         return [
             'enabled' => 0,
             'require_login' => 1,
+            'custom_login_url' => '',
             'mode' => 'both',
             'cutoff_type' => 'same_day_time',
             'cutoff_value' => '09:30',
@@ -1122,6 +1123,7 @@ JS;
         $data = wp_parse_args($input, $defaults);
         $data['enabled'] = !empty($data['enabled']) ? 1 : 0;
         $data['require_login'] = !empty($data['require_login']) ? 1 : 0;
+        $data['custom_login_url'] = esc_url_raw((string)($data['custom_login_url'] ?? ''));
         $data['mode'] = in_array($data['mode'], ['day', 'week', 'both'], true) ? $data['mode'] : 'both';
         $data['cutoff_type'] = in_array($data['cutoff_type'], ['same_day_time', 'day_before_time', 'hours_before', 'week_days_before_monday_time'], true) ? $data['cutoff_type'] : 'same_day_time';
         $data['cutoff_value'] = sanitize_text_field((string)$data['cutoff_value']);
@@ -1140,6 +1142,20 @@ JS;
         $data['gdpr_link'] = esc_url_raw((string)$data['gdpr_link']);
         $data['retention_days'] = max(7, (int)$data['retention_days']);
         return $data;
+    }
+
+    private function get_order_login_url(string $redirect_url = ''): string {
+        $settings = $this->get_order_settings();
+        $custom = trim((string)($settings['custom_login_url'] ?? ''));
+
+        if ($custom !== '') {
+            if ($redirect_url !== '') {
+                return add_query_arg('redirect_to', rawurlencode($redirect_url), $custom);
+            }
+            return $custom;
+        }
+
+        return wp_login_url($redirect_url !== '' ? $redirect_url : home_url('/'));
     }
 
     private function is_ordering_enabled(): bool {
@@ -3005,6 +3021,7 @@ JS;
             <p><input type="hidden" name="order_settings[enabled]" value="0"><label><input type="checkbox" name="order_settings[enabled]" value="1" <?php checked(!empty($order_settings['enabled'])); ?>> Povolit modul objednávek</label></p>
             <div class="hs-order-settings-extra" style="<?php echo empty($order_settings['enabled']) ? 'display:none' : ''; ?>">
               <p><input type="hidden" name="order_settings[require_login]" value="0"><label><input type="checkbox" name="order_settings[require_login]" value="1" <?php checked(!empty($order_settings['require_login'])); ?>> Povolit objednávky pouze pro registrované/přihlášené uživatele</label></p>
+              <p><label>Vlastní URL přihlášení (volitelné)<br><input type="url" class="large-text" name="order_settings[custom_login_url]" value="<?php echo esc_attr($order_settings['custom_login_url'] ?? ''); ?>" placeholder="https://vasweb.cz/prihlaseni"></label></p>
               <p><label>Režim objednávek
                 <select name="order_settings[mode]">
                   <option value="day" <?php selected($order_settings['mode'] ?? 'both', 'day'); ?>>Denní</option>
@@ -3908,7 +3925,11 @@ JS;
         }
 
         if (!empty($settings['require_login']) && !is_user_logged_in()) {
-            return '<div class="hsp-order-locked"><p><strong>Objednávky jsou dostupné jen pro přihlášené zákazníky.</strong></p><p><a class="button button-primary" href="' . esc_url(wp_login_url(get_permalink() ?: home_url('/'))) . '">Přihlásit se</a></p></div>';
+            $current_url = (string) (get_permalink() ?: home_url('/'));
+            $login_url = $this->get_order_login_url($current_url);
+            $locked = '<div class="hsp-order-locked"><p><strong>Objednávky jsou dostupné jen pro přihlášené zákazníky.</strong></p><p><a class="button button-primary" href="' . esc_url($login_url) . '">Přihlásit se</a></p><p class="description">Po přihlášení zůstanete na této stránce.</p></div>';
+            $locked .= '<script>(function(){try{var c=document.cookie||"";if(c.indexOf("wordpress_logged_in_")!==-1){var u=new URL(window.location.href);if(!u.searchParams.get("hsp_refresh")){u.searchParams.set("hsp_refresh",String(Date.now()));window.location.replace(u.toString());}}}catch(e){}})();</script>';
+            return $locked;
         }
 
         $user = wp_get_current_user();
