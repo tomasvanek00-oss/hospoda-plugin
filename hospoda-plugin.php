@@ -2648,6 +2648,7 @@ JS;
         $logo_id = (int)($branding['logo_id'] ?? 0);
         $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : '';
         $preferences = $this->get_menu_preferences();
+        $order_settings = $this->get_order_settings();
         $soup_mode = $preferences['soup_price_mode'] ?? 'included';
         $sides_mode = $preferences['sides_mode'] ?? 'taxonomy';
         $pricing_mode = $preferences['pricing_mode'] ?? 'per_item';
@@ -2976,7 +2977,7 @@ JS;
           </fieldset>
           <fieldset class="hs-branding__orders">
             <legend><strong>Objednávkový systém</strong></legend>
-            <p><label><input type="checkbox" name="order_settings[enabled]" value="1" <?php checked(!empty($order_settings['enabled'])); ?>> Povolit modul objednávek</label></p>
+            <p><input type="hidden" name="order_settings[enabled]" value="0"><label><input type="checkbox" name="order_settings[enabled]" value="1" <?php checked(!empty($order_settings['enabled'])); ?>> Povolit modul objednávek</label></p>
             <div class="hs-order-settings-extra" style="<?php echo empty($order_settings['enabled']) ? 'display:none' : ''; ?>">
               <p><label>Režim objednávek
                 <select name="order_settings[mode]">
@@ -3216,10 +3217,12 @@ JS;
         update_option('hsp_menu_preferences', $preferences, false);
         $this->menu_preferences_cache = null;
 
-        $order_input = isset($_POST['order_settings']) && is_array($_POST['order_settings']) ? wp_unslash($_POST['order_settings']) : [];
-        $order_settings = $this->sanitize_order_settings($order_input);
-        update_option('hsp_order_settings', $order_settings, false);
-        $this->cleanup_old_orders($order_settings);
+        if (isset($_POST['order_settings']) && is_array($_POST['order_settings'])) {
+            $order_input = wp_unslash($_POST['order_settings']);
+            $order_settings = $this->sanitize_order_settings($order_input);
+            update_option('hsp_order_settings', $order_settings, false);
+            $this->cleanup_old_orders($order_settings);
+        }
 
         wp_redirect(admin_url('admin.php?page=hospoda-week-branding&branding_saved=1'));
         exit;
