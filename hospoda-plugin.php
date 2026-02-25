@@ -617,8 +617,11 @@ CSS;
             if ($rows.length && $rows.first().find('.sides').length){
               sidesHtml = $rows.first().find('.sides').html() || '';
             }
+            var hasWeight = $rows.length && $rows.first().find('input.weight').length > 0;
+            var weightPlaceholder = hasWeight ? ($rows.first().find('input.weight').first().attr('placeholder') || 'Hmotnost') : '';
             var pricePlaceholder = (window.HOSPOS && window.HOSPOS.pricePlaceholder) ? window.HOSPOS.pricePlaceholder : 'Cena';
             var priceField = includePrice ? '  <input class="price" type="text" name="week[mains]['+idx+']['+rowKey+'][price]" placeholder="'+pricePlaceholder+'" value="">\n' : '';
+            var weightField = hasWeight ? '  <input class="weight" type="text" name="week[mains]['+idx+']['+rowKey+'][weight]" placeholder="'+weightPlaceholder+'" value="">\n' : '';
             var groupInput = groupKey ? '  <input class="menu-group-key" type="hidden" name="week[mains]['+idx+']['+rowKey+'][menu_group]" value="'+groupKey+'">\n' : '';
             var sidesSection = '';
             if (hasSides && sidesHtml){
@@ -632,6 +635,7 @@ CSS;
               '  <input class="meal-allergens" type="hidden" name="week[mains]['+idx+']['+rowKey+'][allergens]" value="">\n'+
               groupInput+
               priceField+
+              weightField+
               sidesSection+
               '  <button type="button" class="button link-button remove-row" data-week-index="'+idx+'"'+(groupKey?' data-group-key="'+groupKey+'"':'')+'>Odstranit</button>\n'+
               '</div>';
@@ -2315,6 +2319,7 @@ JS;
               <input class="meal-id" type="hidden" name="soup[id]" value="<?php echo esc_attr($data['soup']['id'] ?? ''); ?>">
               <input class="meal-allergens" type="hidden" name="soup[allergens]" value="<?php echo esc_attr($this->format_allergens_field($data['soup']['allergens'] ?? [])); ?>">
               <input class="price" type="text" name="soup[price]" placeholder="<?php echo esc_attr($price_placeholder); ?>" value="<?php echo esc_attr($data['soup']['price'] ?? ''); ?>">
+              <?php if ($this->should_collect_weights()) : ?><input class="weight" type="text" name="soup[weight]" placeholder="Hmotnost (<?php echo esc_attr($this->get_weight_unit('soup')); ?>)" value="<?php echo esc_attr($data['soup']['weight'] ?? ''); ?>"><?php endif; ?>
             </div>
             <div id="mains" class="hs-mains">
               <?php
@@ -2339,6 +2344,7 @@ JS;
           <input class="meal-id" type="hidden" name="mains[<?php echo esc_attr($i); ?>][id]" value="<?php echo esc_attr($row['id'] ?? ''); ?>">
           <input class="meal-allergens" type="hidden" name="mains[<?php echo esc_attr($i); ?>][allergens]" value="<?php echo esc_attr($this->format_allergens_field($row['allergens'] ?? [])); ?>">
           <input class="price" type="text" name="mains[<?php echo esc_attr($i); ?>][price]" placeholder="<?php echo esc_attr($price_placeholder); ?>" value="<?php echo esc_attr($row['price'] ?? ''); ?>">
+          <?php if ($this->should_collect_weights()) : ?><input class="weight" type="text" name="mains[<?php echo esc_attr($i); ?>][weight]" placeholder="Hmotnost (<?php echo esc_attr($this->get_weight_unit('main')); ?>)" value="<?php echo esc_attr($row['weight'] ?? ''); ?>"><?php endif; ?>
           <div class="sides">
             <?php foreach ($sides as $side): $term_id = is_object($side)?$side->term_id:$side['term_id']; $term_name = is_object($side)?$side->name:$side['name']; ?>
               <label><input type="checkbox" name="mains[<?php echo esc_attr($i); ?>][sides][]" value="<?php echo esc_attr($term_id); ?>" <?php checked(in_array($term_id, $row['sides'] ?? [])); ?>> <?php echo esc_html($term_name); ?></label>
@@ -2361,12 +2367,14 @@ JS;
         $soup_id = isset($soup_in['id']) ? intval($soup_in['id']) : 0;
         $soup_title_raw = sanitize_text_field($soup_in['title'] ?? '');
         $soup_price = sanitize_text_field($soup_in['price'] ?? '');
+        $soup_weight = sanitize_text_field($soup_in['weight'] ?? '');
         $soup_allergens = $this->sanitize_allergen_list($soup_in['allergens'] ?? []);
         [$soup_id, $soup_title] = $this->resolve_meal_variant($soup_id, $soup_title_raw, $soup_price, $soup_allergens, [], false);
         $soup = [
             'id'        => $soup_id,
             'title'     => $soup_title,
             'price'     => $soup_price,
+            'weight'    => $soup_weight,
             'allergens' => $soup_allergens,
         ];
         update_post_meta($post_id,'soup',$soup);
@@ -2645,6 +2653,7 @@ JS;
                             <input class="meal-id" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_key); ?>][id]" value="<?php echo esc_attr($row['id'] ?? ''); ?>">
                             <input class="meal-allergens" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_key); ?>][allergens]" value="<?php echo esc_attr($allergen_value); ?>">
                             <input class="menu-group-key" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_key); ?>][menu_group]" value="<?php echo esc_attr($group_key); ?>">
+                            <?php if ($collect_weights) : ?><input class="weight" type="text" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_key); ?>][weight]" placeholder="Hmotnost (<?php echo esc_attr($main_unit); ?>)" value="<?php echo esc_attr($row['weight'] ?? ''); ?>"><?php endif; ?>
                             <?php if ($use_sides) : ?>
                               <div class="sides">
                                 <?php foreach ($sides as $side) :
@@ -2899,17 +2908,17 @@ JS;
           </form>
           <script>
           (function(){
-            function bindDay(day){
-              var addBtn = day.querySelector('.add-soup-week');
-              var list = day.querySelector('.hs-soups');
-              if(!addBtn || !list) return;
-              if(addBtn.dataset.bound==='1') return;
-              addBtn.dataset.bound='1';
-              addBtn.addEventListener('click', function(){
-                var idx = parseInt(day.getAttribute('data-week-index')||'0',10);
-                var next = parseInt(list.getAttribute('data-next-index')||'0',10);
+            document.addEventListener('click', function(e){
+              var addBtn = e.target.closest('.add-soup-week');
+              if (addBtn) {
+                var day = addBtn.closest('.hs-week-day');
+                if (!day) return;
+                var list = day.querySelector('.hs-soups');
+                if (!list) return;
+                var idx = parseInt(day.getAttribute('data-week-index') || '0', 10);
+                var next = parseInt(list.getAttribute('data-next-index') || '0', 10);
                 var row = document.createElement('div');
-                row.className='row soup';
+                row.className = 'row soup';
                 row.innerHTML = '<input class="meal-autocomplete" name="week[soup]['+idx+']['+next+'][title]" type="text" placeholder="Polévka – začněte psát…">'
                   + '<input class="meal-id" type="hidden" name="week[soup]['+idx+']['+next+'][id]" value="">'
                   + '<input class="meal-allergens" type="hidden" name="week[soup]['+idx+']['+next+'][allergens]" value="">'
@@ -2917,17 +2926,16 @@ JS;
                   + '<?php if ($this->should_collect_weights()) : ?><input class="weight" type="text" name="week[soup]['+idx+']['+next+'][weight]" placeholder="Hmotnost (<?php echo esc_js($this->get_weight_unit('soup')); ?>)" value=""><?php endif; ?>'
                   + '<button type="button" class="button link-button remove-soup-row">Odstranit</button>';
                 list.appendChild(row);
-                list.setAttribute('data-next-index', String(next+1));
-              });
-              list.addEventListener('click', function(e){
-                var btn = e.target.closest('.remove-soup-row');
-                if(!btn) return;
-                var row = btn.closest('.row.soup');
-                if(!row) return;
-                row.remove();
-              });
-            }
-            document.querySelectorAll('.hs-week-day').forEach(bindDay);
+                list.setAttribute('data-next-index', String(next + 1));
+                return;
+              }
+
+              var removeBtn = e.target.closest('.remove-soup-row');
+              if (removeBtn) {
+                var row = removeBtn.closest('.row.soup');
+                if (row) row.remove();
+              }
+            });
           })();
           </script>
         </div>
