@@ -1,5 +1,7 @@
 <?php
 
+namespace HospodaPlugin;
+
 if (!defined('ABSPATH')) {
     exit;
 }
