@@ -876,6 +876,7 @@ JS;
             wp_enqueue_script('hospoda-branding');
             $css3 = '.hs-branding{margin:20px 0;padding:20px;border:1px solid #d0d0d0;border-radius:6px;background:#fff;max-width:960px}.hs-branding h2{margin-top:0}.hs-branding__logo{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.hs-branding__preview{width:160px;min-height:120px;border:1px dashed #ccd0d4;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;overflow:hidden}.hs-branding__preview img{max-width:100%;height:auto;display:block}.hs-branding__preview span{color:#777;font-style:italic}.hs-branding textarea{max-width:100%}.hs-branding .description{margin-top:4px;color:#555}.hs-branding__controls{display:flex;flex-direction:column;gap:8px}.hs-branding__static{margin-top:24px;padding-top:16px;border-top:1px solid #d8d8d8}.hs-branding__static h2{margin:0 0 6px;font-size:18px}.hs-branding__menu-groups{margin-top:20px;padding:16px;border:1px solid #d9dde8;border-radius:8px;background:#f8fafc}.hs-branding__menu-groups.is-hidden{display:none}.hs-branding__currency{margin-top:24px;padding:16px;border:1px solid #d9dde8;border-radius:8px;background:#f8fafc}.hs-branding__currency label{font-weight:600;color:#334155}.hs-menu-groups{display:flex;flex-direction:column;gap:12px;margin-top:12px}.hs-menu-group{display:flex;flex-wrap:wrap;gap:12px;padding:12px;border:1px solid #e5e7eb;border-radius:6px;background:#fff}.hs-menu-group label{display:flex;flex-direction:column;flex:1 1 220px;font-weight:600;font-size:13px;color:#334155}.hs-menu-group label input[type=text]{margin-top:4px}.hs-menu-group-remove{margin-left:auto}.hs-menu-groups__actions{margin-top:10px}.hs-static-menu{display:flex;flex-direction:column;gap:14px;margin-top:12px}.hs-static-menu .row{display:flex;flex-wrap:wrap;gap:12px;padding:14px;border:1px solid #e5e7eb;border-radius:8px;background:#fafafa}.hs-static-menu .row input.meal-autocomplete{flex:1 1 260px;min-width:220px}.hs-static-menu .row input.price{width:110px}.hs-static-menu .sides{display:flex;flex-wrap:wrap;gap:8px}.hs-static-menu .sides label{margin:0;padding:4px 10px;border:1px solid #d5d7db;border-radius:4px;background:#fff;font-size:13px}.hs-static-menu .remove-row{margin-left:auto}.hs-static-actions{margin-top:12px}';
             $css3 .= '.hs-branding__theme{margin-top:24px;padding-top:20px;border-top:1px solid #d8d8d8;display:flex;flex-direction:column;gap:20px}.hs-branding__theme-grid{display:grid;gap:18px}.hs-branding__theme-group{border:1px solid #e2e8f0;border-radius:8px;padding:16px 18px;background:#f9fafb;display:flex;flex-direction:column;gap:12px}.hs-branding__theme-group h3{margin:0;font-size:16px;color:#0f172a}.hs-branding__field{display:flex;flex-direction:column;gap:4px}.hs-branding__field label{font-weight:600;font-size:13px;color:#334155}.hs-branding__field input[type=text]{max-width:170px}.hs-branding__field input[type=number]{max-width:120px}.hs-branding__field select{max-width:200px}.hs-branding__field .description{margin:0;font-size:12px;color:#64748b}.hs-color-palette{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.hs-color-swatch{--hs-swatch-color:#000;width:34px;height:34px;padding:0;border-radius:4px;border:1px solid #cbd5e1;background:var(--hs-swatch-color);box-shadow:inset 0 0 0 1px rgba(255,255,255,.6);cursor:pointer;position:relative}.hs-color-swatch:hover{box-shadow:0 0 0 2px rgba(37,99,235,.4)}.hs-color-swatch.is-active{box-shadow:0 0 0 3px rgba(37,99,235,.8)}.hs-color-swatch:focus{outline:2px solid #2563eb;outline-offset:2px}';
+            $css3 .= '.hs-branding-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 12px}.hs-branding-tab.is-active{background:#1d4ed8;border-color:#1d4ed8;color:#fff}.hs-settings-panel{display:none}.hs-settings-panel.is-active{display:block}';
             $css3 .= '@media(min-width:768px){.hs-branding__theme-grid{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}}';
             wp_add_inline_style('hospoda-admin', $css3);
         }
@@ -2660,6 +2661,16 @@ JS;
             1 => 'Pondělí',
         ];
         $base_size_value = isset($typo_theme['base_size']) ? (int)$typo_theme['base_size'] : 16;
+        $settings_sections = [
+            'general' => 'Základní nastavení',
+            'static'  => 'Stálá nabídka',
+            'theme'   => 'Vzhled webu',
+            'orders'  => 'Objednávky',
+        ];
+        $active_section = isset($_GET['settings_section']) ? sanitize_key((string) wp_unslash($_GET['settings_section'])) : 'general';
+        if (!isset($settings_sections[$active_section])) {
+            $active_section = 'general';
+        }
         ?>
         <div class="wrap">
           <h1>Nastavení</h1>
@@ -2669,9 +2680,17 @@ JS;
           <?php elseif (isset($_GET['branding_error'])) : ?>
             <div class="notice notice-error is-dismissible"><p>Nahrání loga se nezdařilo: <?php echo esc_html(rawurldecode(wp_unslash($_GET['branding_error']))); ?></p></div>
           <?php endif; ?>
+          <div class="hs-branding-tabs" role="tablist" aria-label="Sekce nastavení">
+            <?php foreach ($settings_sections as $section_key => $section_label) : ?>
+              <?php $is_active_section = $active_section === $section_key; ?>
+              <button type="button" class="button hs-branding-tab<?php echo $is_active_section ? ' is-active' : ''; ?>" data-target="<?php echo esc_attr($section_key); ?>" role="tab" aria-selected="<?php echo $is_active_section ? 'true' : 'false'; ?>"><?php echo esc_html($section_label); ?></button>
+            <?php endforeach; ?>
+          </div>
           <form class="hs-branding" method="post" enctype="multipart/form-data" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <?php wp_nonce_field('hospoda_save_branding'); ?>
             <input type="hidden" name="action" value="hospoda_save_branding">
+            <input type="hidden" name="settings_section" value="<?php echo esc_attr($active_section); ?>">
+            <div class="hs-settings-panel<?php echo $active_section === 'general' ? ' is-active' : ''; ?>" data-section="general" role="tabpanel">
             <div class="hs-branding__logo">
               <div class="hs-branding__preview">
                 <?php if ($logo_url) : ?>
@@ -2700,6 +2719,8 @@ JS;
               <textarea name="branding_bottom" id="hs-branding-bottom" rows="4" class="large-text code"><?php echo esc_textarea($branding['bottom_text']); ?></textarea>
               <span class="description">Řádky se zobrazí pod seznamem jídel v patičce PDF.</span>
             </p>
+            </div>
+            <div class="hs-settings-panel<?php echo $active_section === 'static' ? ' is-active' : ''; ?>" data-section="static" role="tabpanel">
             <div class="hs-branding__static">
               <h2>Stálá nabídka</h2>
               <p class="description">Vyberte položky z knihovny jídel. Budou zobrazeny pod týdenním menu na webu i v PDF exportu.</p>
@@ -2740,6 +2761,8 @@ JS;
             </div>
             <p class="hs-static-actions"><button type="button" class="button" id="hs-static-add">Přidat položku</button></p>
           </div>
+          </div>
+          <div class="hs-settings-panel<?php echo $active_section === 'general' ? ' is-active' : ''; ?>" data-section="general" role="tabpanel">
           <fieldset class="hs-branding__currency">
             <legend><strong>Značení měny</strong></legend>
             <label for="hs-currency-label">Text měny</label><br>
@@ -2815,6 +2838,8 @@ JS;
               <p class="hs-menu-groups__actions"><button type="button" class="button" id="hs-menu-groups-add">Přidat menu</button></p>
             </div>
           </fieldset>
+          </div>
+          <div class="hs-settings-panel<?php echo $active_section === 'theme' ? ' is-active' : ''; ?>" data-section="theme" role="tabpanel">
           <fieldset class="hs-branding__theme">
             <legend><strong>Vzhled webového menu</strong></legend>
             <p class="description">Nastavte barvy a styl prvků, které se zobrazují ve veřejném výpisu jídelního lístku.</p>
@@ -2911,6 +2936,8 @@ JS;
               </div>
             </div>
           </fieldset>
+          </div>
+          <div class="hs-settings-panel<?php echo $active_section === 'orders' ? ' is-active' : ''; ?>" data-section="orders" role="tabpanel">
           <fieldset class="hs-branding__orders">
             <legend><strong>Objednávkový systém</strong></legend>
             <p><input type="hidden" name="order_settings[enabled]" value="0"><label><input type="checkbox" name="order_settings[enabled]" value="1" <?php checked(!empty($order_settings['enabled'])); ?>> Povolit modul objednávek</label></p>
@@ -2972,7 +2999,9 @@ JS;
               <p><label>Uchování objednávek (dní) <input type="number" name="order_settings[retention_days]" value="<?php echo esc_attr((string)($order_settings['retention_days'] ?? 90)); ?>" min="7"></label></p>
             </div>
           </fieldset>
+          </div>
           <script>document.addEventListener('DOMContentLoaded',function(){var cb=document.querySelector('input[name="order_settings[enabled]"]');var box=document.querySelector('.hs-order-settings-extra');if(!cb||!box)return;cb.addEventListener('change',function(){box.style.display=cb.checked?'':'none';});});</script>
+          <script>document.addEventListener('DOMContentLoaded',function(){var tabs=[].slice.call(document.querySelectorAll('.hs-branding-tab'));var panels=[].slice.call(document.querySelectorAll('.hs-settings-panel'));var sectionField=document.querySelector('input[name="settings_section"]');if(!tabs.length||!panels.length||!sectionField)return;var setActive=function(target){panels.forEach(function(panel){var active=panel.getAttribute('data-section')===target;panel.classList.toggle('is-active',active);});tabs.forEach(function(tab){var active=tab.getAttribute('data-target')===target;tab.classList.toggle('is-active',active);tab.setAttribute('aria-selected',active?'true':'false');});sectionField.value=target;};tabs.forEach(function(tab){tab.addEventListener('click',function(){setActive(tab.getAttribute('data-target'));});});setActive(sectionField.value||'general');});</script>
           <p>
             <button type="submit" class="button button-primary">Uložit nastavení</button>
             <a class="button button-secondary" href="<?php echo esc_url(admin_url('admin.php?page=hospoda-week')); ?>">Zpět na týdenní menu</a>
@@ -3132,6 +3161,11 @@ JS;
         check_admin_referer('hospoda_save_branding');
 
         $current_logo_id = isset($_POST['branding_logo_id']) ? intval($_POST['branding_logo_id']) : 0;
+        $settings_section = isset($_POST['settings_section']) ? sanitize_key((string) wp_unslash($_POST['settings_section'])) : 'general';
+        $allowed_sections = ['general', 'static', 'theme', 'orders'];
+        if (!in_array($settings_section, $allowed_sections, true)) {
+            $settings_section = 'general';
+        }
         $remove_logo = !empty($_POST['branding_logo_remove']);
         $top = isset($_POST['branding_top']) ? sanitize_textarea_field(wp_unslash($_POST['branding_top'])) : '';
         $bottom = isset($_POST['branding_bottom']) ? sanitize_textarea_field(wp_unslash($_POST['branding_bottom'])) : '';
@@ -3148,7 +3182,7 @@ JS;
             $upload_id = media_handle_upload('branding_logo_file', 0);
             if (is_wp_error($upload_id)) {
                 $error_message = rawurlencode($upload_id->get_error_message());
-                wp_redirect(admin_url('admin.php?page=hospoda-week-branding&branding_error=' . $error_message));
+                wp_redirect(admin_url('admin.php?page=hospoda-week-branding&settings_section=' . rawurlencode($settings_section) . '&branding_error=' . $error_message));
                 exit;
             }
             $new_logo_id = (int) $upload_id;
@@ -3195,7 +3229,7 @@ JS;
             $this->cleanup_old_orders($order_settings);
         }
 
-        wp_redirect(admin_url('admin.php?page=hospoda-week-branding&branding_saved=1'));
+        wp_redirect(admin_url('admin.php?page=hospoda-week-branding&settings_section=' . rawurlencode($settings_section) . '&branding_saved=1'));
         exit;
     }
 
