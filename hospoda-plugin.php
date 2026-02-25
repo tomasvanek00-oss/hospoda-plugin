@@ -2400,6 +2400,7 @@ JS;
             $id=intval($row['id']??0);
             $title_raw = sanitize_text_field($row['title'] ?? '');
             $price = sanitize_text_field($row['price'] ?? '');
+            $weight = sanitize_text_field($row['weight'] ?? '');
             $allergens = $this->sanitize_allergen_list($row['allergens'] ?? []);
             $sides_list = array_values(array_unique(array_map('intval',$row['sides']??[])));
             $group_key = '';
@@ -2418,6 +2419,7 @@ JS;
                 'id'=>$id,
                 'title'=>$resolved_title,
                 'price'=>$price,
+                'weight'=>$weight,
                 'sides'=>$sides_list,
                 'allergens'=>$allergens,
                 'menu_group'=>$group_key,
@@ -3460,6 +3462,7 @@ JS;
                 $id = intval($row['id'] ?? 0);
                 $title_raw = sanitize_text_field($row['title'] ?? '');
                 $price = sanitize_text_field($row['price'] ?? '');
+                $weight = sanitize_text_field($row['weight'] ?? '');
                 $allergens = $this->sanitize_allergen_list($row['allergens'] ?? []);
                 $sides_list = array_values(array_unique(array_map('intval', $row['sides'] ?? [])));
                 $group_key = '';
@@ -3478,6 +3481,7 @@ JS;
                     'id'    => $id,
                     'title' => $resolved_title,
                     'price' => $price,
+                    'weight' => $weight,
                     'sides' => $sides_list,
                     'allergens' => $allergens,
                     'menu_group' => $group_key,
