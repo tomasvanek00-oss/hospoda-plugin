@@ -1131,6 +1131,31 @@ JS;
         return $weightValue . ' ' . $this->get_weight_unit($type);
     }
 
+
+    /**
+     * @param mixed $mains
+     */
+    private function find_existing_main_weight($mains, int $meal_id, string $title): string {
+        if (!is_array($mains)) {
+            return '';
+        }
+        $needle_title = sanitize_text_field($title);
+        foreach ($mains as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $row_id = (int)($row['id'] ?? 0);
+            $row_title = sanitize_text_field((string)($row['title'] ?? ''));
+            if ($meal_id > 0 && $row_id === $meal_id) {
+                return sanitize_text_field((string)($row['weight'] ?? ''));
+            }
+            if ($needle_title !== '' && $row_title !== '' && $row_title === $needle_title) {
+                return sanitize_text_field((string)($row['weight'] ?? ''));
+            }
+        }
+        return '';
+    }
+
     private function normalize_soups_meta($meta): array {
         if (is_array($meta) && isset($meta[0]) && is_array($meta[0])) {
             $rows = $meta;
@@ -2379,6 +2404,7 @@ JS;
         ];
         update_post_meta($post_id,'soup',$soup);
         $mains=[];
+        $existing_mains = get_post_meta($post_id, 'mains', true);
         $use_groups = $this->should_use_menu_groups();
         $group_settings = $this->get_menu_groups_setting();
         $group_keys = [];
@@ -2401,6 +2427,9 @@ JS;
             $title_raw = sanitize_text_field($row['title'] ?? '');
             $price = sanitize_text_field($row['price'] ?? '');
             $weight = sanitize_text_field($row['weight'] ?? '');
+            if ($weight === '') {
+                $weight = $this->find_existing_main_weight($existing_mains, $id, $title_raw);
+            }
             $allergens = $this->sanitize_allergen_list($row['allergens'] ?? []);
             $sides_list = array_values(array_unique(array_map('intval',$row['sides']??[])));
             $group_key = '';
@@ -3437,6 +3466,7 @@ JS;
 
             // Hlavní jídla
             $mains = [];
+            $existing_mains = get_post_meta($post_id, 'mains', true);
             $mains_in = $week['mains'][$i] ?? [];
             $day_group_input = isset($week_groups_input[$i]) ? $week_groups_input[$i] : [];
             $day_groups = $use_groups ? $this->prepare_menu_groups_submission($day_group_input) : [];
@@ -3463,6 +3493,9 @@ JS;
                 $title_raw = sanitize_text_field($row['title'] ?? '');
                 $price = sanitize_text_field($row['price'] ?? '');
                 $weight = sanitize_text_field($row['weight'] ?? '');
+                if ($weight === '') {
+                    $weight = $this->find_existing_main_weight($existing_mains, $id, $title_raw);
+                }
                 $allergens = $this->sanitize_allergen_list($row['allergens'] ?? []);
                 $sides_list = array_values(array_unique(array_map('intval', $row['sides'] ?? [])));
                 $group_key = '';
