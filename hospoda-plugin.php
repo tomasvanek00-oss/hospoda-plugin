@@ -685,6 +685,41 @@ CSS;
             }
           });
 
+          $(document).on('click','.add-soup-week', function(e){
+            e.preventDefault();
+            var $day = $(this).closest('.hs-week-day');
+            if (!$day.length){ return; }
+            var $list = $day.find('.hs-soups').first();
+            if (!$list.length){ return; }
+            var idx = parseInt($day.data('weekIndex'), 10);
+            if (isNaN(idx)) { idx = 0; }
+            var next = parseInt($list.attr('data-next-index'), 10);
+            if (isNaN(next)) {
+              next = $list.find('.row.soup').length;
+            }
+            var pricePlaceholder = (window.HOSPOS && window.HOSPOS.pricePlaceholder) ? window.HOSPOS.pricePlaceholder : 'Cena';
+            var hasWeight = $list.find('input.weight').length > 0;
+            var weightPlaceholder = hasWeight ? ($list.find('input.weight').first().attr('placeholder') || 'Hmotnost') : '';
+            var tmpl = ''+
+              '<div class="row soup">'+
+              '<input class="meal-autocomplete" name="week[soup]['+idx+']['+next+'][title]" type="text" placeholder="Polévka – začněte psát…" value="">'+
+              '<input class="meal-id" type="hidden" name="week[soup]['+idx+']['+next+'][id]" value="">'+
+              '<input class="meal-allergens" type="hidden" name="week[soup]['+idx+']['+next+'][allergens]" value="">'+
+              '<input class="price" type="text" name="week[soup]['+idx+']['+next+'][price]" placeholder="'+pricePlaceholder+'" value="">'+
+              (hasWeight ? '<input class="weight" type="text" name="week[soup]['+idx+']['+next+'][weight]" placeholder="'+weightPlaceholder+'" value="">' : '')+
+              '<button type="button" class="button link-button remove-soup-row">Odstranit</button>'+
+              '</div>';
+            var $row = $(tmpl);
+            $list.append($row);
+            $list.attr('data-next-index', String(next + 1));
+            attachAutocomplete($row);
+          });
+
+          $(document).on('click','.remove-soup-row', function(e){
+            e.preventDefault();
+            $(this).closest('.row.soup').remove();
+          });
+
           $(document).on('click','.hs-week-day-groups-toggle', function(e){
             e.preventDefault();
             var $btn = $(this);
@@ -2937,38 +2972,6 @@ JS;
             <input type="hidden" name="action" value="hospoda_export_week_pdf">
             <input type="hidden" name="week_start" value="<?php echo esc_attr($monday); ?>">
           </form>
-          <script>
-          (function(){
-            document.addEventListener('click', function(e){
-              var addBtn = e.target.closest('.add-soup-week');
-              if (addBtn) {
-                var day = addBtn.closest('.hs-week-day');
-                if (!day) return;
-                var list = day.querySelector('.hs-soups');
-                if (!list) return;
-                var idx = parseInt(day.getAttribute('data-week-index') || '0', 10);
-                var next = parseInt(list.getAttribute('data-next-index') || '0', 10);
-                var row = document.createElement('div');
-                row.className = 'row soup';
-                row.innerHTML = '<input class="meal-autocomplete" name="week[soup]['+idx+']['+next+'][title]" type="text" placeholder="Polévka – začněte psát…">'
-                  + '<input class="meal-id" type="hidden" name="week[soup]['+idx+']['+next+'][id]" value="">'
-                  + '<input class="meal-allergens" type="hidden" name="week[soup]['+idx+']['+next+'][allergens]" value="">'
-                  + '<input class="price" type="text" name="week[soup]['+idx+']['+next+'][price]" placeholder="<?php echo esc_js($price_placeholder); ?>" value="">'
-                  + '<?php if ($this->should_collect_weights()) : ?><input class="weight" type="text" name="week[soup]['+idx+']['+next+'][weight]" placeholder="Hmotnost (<?php echo esc_js($this->get_weight_unit('soup')); ?>)" value=""><?php endif; ?>'
-                  + '<button type="button" class="button link-button remove-soup-row">Odstranit</button>';
-                list.appendChild(row);
-                list.setAttribute('data-next-index', String(next + 1));
-                return;
-              }
-
-              var removeBtn = e.target.closest('.remove-soup-row');
-              if (removeBtn) {
-                var row = removeBtn.closest('.row.soup');
-                if (row) row.remove();
-              }
-            });
-          })();
-          </script>
         </div>
         <?php
     }
