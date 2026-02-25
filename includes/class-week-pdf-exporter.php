@@ -17,10 +17,13 @@ class Week_Pdf_Exporter {
         $pricingMode = $this->normalizePricingMode($options['pricing_mode'] ?? 'per_item');
         $showSides = !empty($options['show_sides']);
         $currencyLabel = $this->normalizeCurrencyLabel($options['currency_label'] ?? 'Kč');
+        $showWeights = !empty($options['weights_enabled']);
+        $mainUnit = trim((string)($options['weight_unit_main'] ?? 'g'));
+        $soupUnit = trim((string)($options['weight_unit_soup'] ?? 'l'));
 
         $lastPdf = null;
         foreach ($scales as $scale) {
-            $pdf = $this->renderDocument($week, $branding, $showSoupPrice, $staticMenu, $scale, $pricingMode, $currencyLabel, $showSides);
+            $pdf = $this->renderDocument($week, $branding, $showSoupPrice, $staticMenu, $scale, $pricingMode, $currencyLabel, $showSides, $showWeights, $mainUnit, $soupUnit);
             if ($pdf->get_page_count() <= 1) {
                 return $pdf->output();
             }
@@ -34,7 +37,7 @@ class Week_Pdf_Exporter {
      * @param array{monday:string,labels:array<int,string>,dates:array<int,string>,days:array<int,array>,sides_map:array<int,string>} $week
      * @param array<int,array<string,mixed>> $staticMenu
      */
-    private function renderDocument(array $week, array $branding, bool $showSoupPrice, array $staticMenu, float $scale, string $pricingMode, string $currencyLabel, bool $showSides): Simple_Pdf {
+    private function renderDocument(array $week, array $branding, bool $showSoupPrice, array $staticMenu, float $scale, string $pricingMode, string $currencyLabel, bool $showSides, bool $showWeights, string $mainUnit, string $soupUnit): Simple_Pdf {
         $pdf = new Simple_Pdf();
 
         $startTs = strtotime($week['monday']);
@@ -80,9 +83,11 @@ class Week_Pdf_Exporter {
             $heading = trim($label . ' ' . $this->formatDate($date));
             $this->addScaledText($pdf, $heading, ['font' => 'F2', 'size' => 11.5, 'spacing_after' => 1.4], $scale);
 
-            $dayData = $week['days'][$index] ?? ['soup' => [], 'mains' => []];
-            $soupLine = $this->formatSoupLine($dayData['soup'] ?? [], $showSoupPrice, $currencyLabel);
-            $this->addScaledText($pdf, $soupLine, ['indent' => 12.0, 'size' => 9.2, 'spacing_after' => 1.8], $scale);
+            $dayData = $week['days'][$index] ?? ['soup' => [], 'soups' => [], 'mains' => []];
+            $soupLines = $this->formatSoupLines($dayData['soups'] ?? ($dayData['soup'] ?? []), $showSoupPrice, $currencyLabel, $showWeights, $soupUnit);
+            foreach ($soupLines as $soupLine) {
+                $this->addScaledText($pdf, $soupLine, ['indent' => 12.0, 'size' => 9.2, 'spacing_after' => 1.2], $scale);
+            }
 
             $mains = $dayData['mains'] ?? [];
             $dayGroups = $this->sanitizeMenuGroups($dayData['menu_groups'] ?? []);
@@ -114,7 +119,7 @@ class Week_Pdf_Exporter {
                         if (!is_array($row)) {
                             continue;
                         }
-                        $line = $this->formatMainLine(0, $row, $week['sides_map'], false, $showSides, '• ', $currencyLabel);
+                        $line = $this->formatMainLine(0, $row, $week['sides_map'], false, $showSides, '• ', $currencyLabel, $showWeights, $mainUnit);
                         $this->addScaledText($pdf, $line, ['indent' => 24.0, 'size' => 8.8, 'spacing_after' => 1.0], $scale);
                     }
                 }
@@ -123,7 +128,7 @@ class Week_Pdf_Exporter {
                     if (!is_array($row)) {
                         continue;
                     }
-                    $line = $this->formatMainLine($position + 1, $row, $week['sides_map'], true, $showSides, '', $currencyLabel);
+                    $line = $this->formatMainLine($position + 1, $row, $week['sides_map'], true, $showSides, '', $currencyLabel, $showWeights, $mainUnit);
                     $this->addScaledText($pdf, $line, ['indent' => 18.0, 'size' => 9.2, 'spacing_after' => 1.3], $scale);
                 }
             } else {
@@ -201,33 +206,60 @@ class Week_Pdf_Exporter {
     }
 
     /**
-     * @param array<string,mixed> $soup
+     * @param mixed $soupData
+     * @return array<int,string>
      */
-    private function formatSoupLine(array $soup, bool $showPrice = true, string $currencyLabel = 'Kč'): string {
-        $title = trim((string)($soup['title'] ?? ''));
-        if ($title === '') {
-            return 'Polévka: nenastaveno';
+    private function formatSoupLines($soupData, bool $showPrice = true, string $currencyLabel = 'Kč', bool $showWeights = false, string $unit = 'l'): array {
+        $rows = [];
+        if (is_array($soupData) && isset($soupData[0]) && is_array($soupData[0])) {
+            $rows = $soupData;
+        } elseif (is_array($soupData) && !empty($soupData)) {
+            $rows = [$soupData];
         }
-        $line = 'Polévka: ' . $title;
-        $price = trim((string)($soup['price'] ?? ''));
-        if ($showPrice && $price !== '') {
-            $display = $this->formatPriceDisplay($price, $currencyLabel);
-            if ($display !== '') {
-                $line .= ' — ' . $display;
+
+        $lines = [];
+        $index = 1;
+        foreach ($rows as $soup) {
+            if (!is_array($soup)) {
+                continue;
             }
+            $title = trim((string)($soup['title'] ?? ''));
+            if ($title === '') {
+                continue;
+            }
+            $prefix = count($rows) > 1 ? ('Polévka ' . $index . ': ') : 'Polévka: ';
+            $line = $prefix . $title;
+            $weight = trim((string)($soup['weight'] ?? ''));
+            if ($showWeights && $weight !== '') {
+                $line .= ' (' . $weight . ' ' . $unit . ')';
+            }
+            $price = trim((string)($soup['price'] ?? ''));
+            if ($showPrice && $price !== '') {
+                $display = $this->formatPriceDisplay($price, $currencyLabel);
+                if ($display !== '') {
+                    $line .= ' — ' . $display;
+                }
+            }
+            $allergens = $this->formatAllergens($soup['allergens'] ?? []);
+            if ($allergens !== '') {
+                $line .= ' (A: ' . $allergens . ')';
+            }
+            $lines[] = $line;
+            $index++;
         }
-        $allergens = $this->formatAllergens($soup['allergens'] ?? []);
-        if ($allergens !== '') {
-            $line .= ' (A: ' . $allergens . ')';
+
+        if (empty($lines)) {
+            $lines[] = 'Polévka: nenastaveno';
         }
-        return $line;
+
+        return $lines;
     }
 
     /**
      * @param array<string,mixed> $row
      * @param array<int,string> $sidesMap
      */
-    private function formatMainLine(int $position, array $row, array $sidesMap, bool $includePosition = true, bool $includeSides = true, string $bullet = '', string $currencyLabel = 'Kč'): string {
+    private function formatMainLine(int $position, array $row, array $sidesMap, bool $includePosition = true, bool $includeSides = true, string $bullet = '', string $currencyLabel = 'Kč', bool $showWeights = false, string $unit = 'g'): string {
         $title = trim((string)($row['title'] ?? ''));
         if ($title === '') {
             $title = 'Bez názvu';
@@ -239,6 +271,10 @@ class Week_Pdf_Exporter {
             $prefix = $bullet;
         }
         $line = $prefix . $title;
+        $weight = trim((string)($row['weight'] ?? ''));
+        if ($showWeights && $weight !== '') {
+            $line .= ' (' . $weight . ' ' . $unit . ')';
+        }
         $sides = [];
         if ($includeSides && !empty($row['sides']) && is_array($row['sides'])) {
             foreach ($row['sides'] as $termId) {

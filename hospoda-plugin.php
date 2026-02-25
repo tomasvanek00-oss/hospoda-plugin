@@ -1067,6 +1067,9 @@ JS;
             'currency_label'       => 'Kč',
             'day_switch_hour'      => 12,
             'weekend_rollover_day' => 6,
+            'weights_enabled'      => 0,
+            'weight_unit_main'     => 'g',
+            'weight_unit_soup'     => 'l',
         ];
         $prefs = wp_parse_args($stored, $defaults);
         $prefs['soup_price_mode'] = $this->normalize_soup_price_mode($prefs['soup_price_mode'] ?? '');
@@ -1076,6 +1079,9 @@ JS;
         $prefs['currency_label'] = $this->sanitize_currency_label($prefs['currency_label'] ?? '');
         $prefs['day_switch_hour'] = $this->sanitize_day_switch_hour($prefs['day_switch_hour'] ?? 12);
         $prefs['weekend_rollover_day'] = $this->sanitize_weekend_rollover_day($prefs['weekend_rollover_day'] ?? 6);
+        $prefs['weights_enabled'] = !empty($prefs['weights_enabled']) ? 1 : 0;
+        $prefs['weight_unit_main'] = $this->sanitize_weight_unit((string)($prefs['weight_unit_main'] ?? 'g'), 'g');
+        $prefs['weight_unit_soup'] = $this->sanitize_weight_unit((string)($prefs['weight_unit_soup'] ?? 'l'), 'l');
 
         $this->menu_preferences_cache = $prefs;
 
@@ -1084,6 +1090,69 @@ JS;
 
     private function normalize_soup_price_mode(string $value): string {
         return in_array($value, ['included', 'separate'], true) ? $value : 'included';
+    }
+
+    private function sanitize_weight_unit(string $value, string $fallback = 'g'): string {
+        $value = trim(sanitize_text_field($value));
+        if ($value === '') {
+            return $fallback;
+        }
+        if (strlen($value) > 10) {
+            $value = substr($value, 0, 10);
+        }
+        return $value;
+    }
+
+    private function should_collect_weights(): bool {
+        $prefs = $this->get_menu_preferences();
+        return !empty($prefs['weights_enabled']);
+    }
+
+    private function get_weight_unit(string $type): string {
+        $prefs = $this->get_menu_preferences();
+        if ($type === 'soup') {
+            return $this->sanitize_weight_unit((string)($prefs['weight_unit_soup'] ?? 'l'), 'l');
+        }
+        return $this->sanitize_weight_unit((string)($prefs['weight_unit_main'] ?? 'g'), 'g');
+    }
+
+    private function format_weight_display($weight, string $type): string {
+        $weightValue = trim((string)$weight);
+        if ($weightValue === '') {
+            return '';
+        }
+        if (!$this->should_collect_weights()) {
+            return '';
+        }
+        return $weightValue . ' ' . $this->get_weight_unit($type);
+    }
+
+    private function normalize_soups_meta($meta): array {
+        if (is_array($meta) && isset($meta[0]) && is_array($meta[0])) {
+            $rows = $meta;
+        } elseif (is_array($meta) && !empty($meta)) {
+            $rows = [$meta];
+        } else {
+            $rows = [];
+        }
+        $out = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $title = sanitize_text_field((string)($row['title'] ?? ''));
+            if ($title === '' && empty($row['id'])) {
+                continue;
+            }
+            $out[] = [
+                'id' => (int)($row['id'] ?? 0),
+                'title' => $title,
+                'price' => sanitize_text_field((string)($row['price'] ?? '')),
+                'weight' => sanitize_text_field((string)($row['weight'] ?? '')),
+                'allergens' => $this->sanitize_allergen_list($row['allergens'] ?? []),
+            ];
+        }
+        return $out;
     }
 
 
@@ -2421,7 +2490,13 @@ JS;
 
     // ---------- Týdenní admin stránka ----------
     private function render_week_day_block($index,$label,$date,$sides,$data,$use_sides,$pricing_mode,$default_menu_groups){
-        $soup = is_array($data['soup'] ?? null) ? $data['soup'] : [];
+        $soups = $this->normalize_soups_meta($data['soups'] ?? ($data['soup'] ?? []));
+        if (empty($soups)) {
+            $soups = [['id' => 0, 'title' => '', 'price' => '', 'weight' => '', 'allergens' => []]];
+        }
+        $collect_weights = $this->should_collect_weights();
+        $soup_unit = $this->get_weight_unit('soup');
+        $main_unit = $this->get_weight_unit('main');
         $mains_raw = is_array($data['mains'] ?? null) ? $data['mains'] : [];
         $price_placeholder = $this->get_price_placeholder_label();
         $menu_price_hint = $this->get_menu_price_hint();
@@ -2458,13 +2533,22 @@ JS;
           </legend>
 
           <div class="hs-week-section hs-week-section--soup">
-            <h3 class="hs-week-section-title">Polévka</h3>
-            <div class="row soup">
-              <input class="meal-autocomplete" name="week[soup][<?php echo esc_attr($index); ?>][title]" type="text" placeholder="Polévka – začněte psát…" value="<?php echo esc_attr($soup['title'] ?? ''); ?>">
-              <input class="meal-id" type="hidden" name="week[soup][<?php echo esc_attr($index); ?>][id]" value="<?php echo esc_attr($soup['id'] ?? ''); ?>">
-              <input class="meal-allergens" type="hidden" name="week[soup][<?php echo esc_attr($index); ?>][allergens]" value="<?php echo esc_attr($this->format_allergens_field($soup['allergens'] ?? [])); ?>">
-              <input class="price" type="text" name="week[soup][<?php echo esc_attr($index); ?>][price]" placeholder="<?php echo esc_attr($price_placeholder); ?>" value="<?php echo esc_attr($soup['price'] ?? ''); ?>">
+            <h3 class="hs-week-section-title">Polévky</h3>
+            <div id="soups-<?php echo esc_attr($index); ?>" class="hs-soups" data-next-index="<?php echo esc_attr(count($soups)); ?>">
+              <?php foreach ($soups as $soup_idx => $soup_row) : ?>
+              <div class="row soup" data-index="<?php echo esc_attr($soup_idx); ?>">
+                <input class="meal-autocomplete" name="week[soup][<?php echo esc_attr($index); ?>][<?php echo esc_attr($soup_idx); ?>][title]" type="text" placeholder="Polévka – začněte psát…" value="<?php echo esc_attr($soup_row['title'] ?? ''); ?>">
+                <input class="meal-id" type="hidden" name="week[soup][<?php echo esc_attr($index); ?>][<?php echo esc_attr($soup_idx); ?>][id]" value="<?php echo esc_attr($soup_row['id'] ?? ''); ?>">
+                <input class="meal-allergens" type="hidden" name="week[soup][<?php echo esc_attr($index); ?>][<?php echo esc_attr($soup_idx); ?>][allergens]" value="<?php echo esc_attr($this->format_allergens_field($soup_row['allergens'] ?? [])); ?>">
+                <input class="price" type="text" name="week[soup][<?php echo esc_attr($index); ?>][<?php echo esc_attr($soup_idx); ?>][price]" placeholder="<?php echo esc_attr($price_placeholder); ?>" value="<?php echo esc_attr($soup_row['price'] ?? ''); ?>">
+                <?php if ($collect_weights) : ?>
+                <input class="weight" type="text" name="week[soup][<?php echo esc_attr($index); ?>][<?php echo esc_attr($soup_idx); ?>][weight]" placeholder="Hmotnost (<?php echo esc_attr($soup_unit); ?>)" value="<?php echo esc_attr($soup_row['weight'] ?? ''); ?>">
+                <?php endif; ?>
+                <button type="button" class="button link-button remove-soup-row">Odstranit</button>
+              </div>
+              <?php endforeach; ?>
             </div>
+            <p class="hs-week-add"><button type="button" class="button add-soup-week" data-week-index="<?php echo esc_attr($index); ?>">Přidat další polévku</button></p>
           </div>
 
           <div class="hs-week-section hs-week-section--mains">
@@ -2601,6 +2685,7 @@ JS;
                           <input class="meal-id" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][id]" value="<?php echo esc_attr($row['id'] ?? ''); ?>">
                           <input class="meal-allergens" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][allergens]" value="<?php echo esc_attr($this->format_allergens_field($row['allergens'] ?? [])); ?>">
                           <input class="price" type="text" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][price]" placeholder="<?php echo esc_attr($price_placeholder); ?>" value="<?php echo esc_attr($row['price'] ?? ''); ?>">
+                          <?php if ($collect_weights) : ?><input class="weight" type="text" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($i); ?>][weight]" placeholder="Hmotnost (<?php echo esc_attr($main_unit); ?>)" value="<?php echo esc_attr($row['weight'] ?? ''); ?>"><?php endif; ?>
                           <?php if ($use_sides) : ?>
                             <div class="sides">
                               <?php foreach ($sides as $side): $term_id = is_object($side)?$side->term_id:(isset($side['term_id'])?$side['term_id']:''); $term_name = is_object($side)?$side->name:(isset($side['name'])?$side['name']:''); if (!$term_id) { continue; } ?>
@@ -2623,6 +2708,7 @@ JS;
                       <input class="meal-id" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][0][id]" value="">
                       <input class="meal-allergens" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][0][allergens]" value="">
                       <input class="price" type="text" name="week[mains][<?php echo esc_attr($index); ?>][0][price]" placeholder="<?php echo esc_attr($price_placeholder); ?>" value="">
+                      <?php if ($collect_weights) : ?><input class="weight" type="text" name="week[mains][<?php echo esc_attr($index); ?>][0][weight]" placeholder="Hmotnost (<?php echo esc_attr($main_unit); ?>)" value=""><?php endif; ?>
                       <?php if ($use_sides) : ?>
                         <div class="sides">
                           <?php foreach ($sides as $side): $term_id = is_object($side)?$side->term_id:(isset($side['term_id'])?$side['term_id']:''); $term_name = is_object($side)?$side->name:(isset($side['name'])?$side['name']:''); if (!$term_id) { continue; } ?>
@@ -2658,6 +2744,7 @@ JS;
       <input class="meal-id" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_placeholder); ?>][id]" value="">
       <input class="meal-allergens" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_placeholder); ?>][allergens]" value="">
       <input class="menu-group-key" type="hidden" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_placeholder); ?>][menu_group]" value="__GROUP_KEY__">
+      <?php if ($this->should_collect_weights()) : ?><input class="weight" type="text" name="week[mains][<?php echo esc_attr($index); ?>][<?php echo esc_attr($row_placeholder); ?>][weight]" placeholder="Hmotnost (<?php echo esc_attr($this->get_weight_unit('main')); ?>)" value=""><?php endif; ?>
       <?php if ($use_sides) : ?>
         <div class="sides">
           <?php foreach ($sides as $side) :
@@ -2714,14 +2801,21 @@ JS;
                 $id=$posts[0]->ID;
                 $groups_meta = $this->should_use_menu_groups() ? $this->get_day_menu_groups_meta($id) : [];
                 $active_groups = (!empty($groups_meta) ? $groups_meta : $menu_groups_default);
+                $soups_meta = $this->normalize_soups_meta(get_post_meta($id,'soups',true));
+                $soup_legacy = get_post_meta($id,'soup',true);
+                if (empty($soups_meta)) {
+                    $soups_meta = $this->normalize_soups_meta($soup_legacy);
+                }
                 $days_data[$i]=[
-                    'soup'=>get_post_meta($id,'soup',true),
+                    'soups'=>$soups_meta,
+                    'soup'=>$soup_legacy,
                     'mains'=>get_post_meta($id,'mains',true),
                     'menu_groups'=>$this->should_use_menu_groups() ? $active_groups : [],
                     'menu_groups_meta'=>$groups_meta,
                 ];
             } else {
                 $days_data[$i]=[
+                    'soups'=>[],
                     'soup'=>['id'=>'','title'=>'','price'=>''],
                     'mains'=>[],
                     'menu_groups'=>$this->should_use_menu_groups() ? $menu_groups_default : [],
@@ -2803,6 +2897,39 @@ JS;
             <input type="hidden" name="action" value="hospoda_export_week_pdf">
             <input type="hidden" name="week_start" value="<?php echo esc_attr($monday); ?>">
           </form>
+          <script>
+          (function(){
+            function bindDay(day){
+              var addBtn = day.querySelector('.add-soup-week');
+              var list = day.querySelector('.hs-soups');
+              if(!addBtn || !list) return;
+              if(addBtn.dataset.bound==='1') return;
+              addBtn.dataset.bound='1';
+              addBtn.addEventListener('click', function(){
+                var idx = parseInt(day.getAttribute('data-week-index')||'0',10);
+                var next = parseInt(list.getAttribute('data-next-index')||'0',10);
+                var row = document.createElement('div');
+                row.className='row soup';
+                row.innerHTML = '<input class="meal-autocomplete" name="week[soup]['+idx+']['+next+'][title]" type="text" placeholder="Polévka – začněte psát…">'
+                  + '<input class="meal-id" type="hidden" name="week[soup]['+idx+']['+next+'][id]" value="">'
+                  + '<input class="meal-allergens" type="hidden" name="week[soup]['+idx+']['+next+'][allergens]" value="">'
+                  + '<input class="price" type="text" name="week[soup]['+idx+']['+next+'][price]" placeholder="<?php echo esc_js($price_placeholder); ?>" value="">'
+                  + '<?php if ($this->should_collect_weights()) : ?><input class="weight" type="text" name="week[soup]['+idx+']['+next+'][weight]" placeholder="Hmotnost (<?php echo esc_js($this->get_weight_unit('soup')); ?>)" value=""><?php endif; ?>'
+                  + '<button type="button" class="button link-button remove-soup-row">Odstranit</button>';
+                list.appendChild(row);
+                list.setAttribute('data-next-index', String(next+1));
+              });
+              list.addEventListener('click', function(e){
+                var btn = e.target.closest('.remove-soup-row');
+                if(!btn) return;
+                var row = btn.closest('.row.soup');
+                if(!row) return;
+                row.remove();
+              });
+            }
+            document.querySelectorAll('.hs-week-day').forEach(bindDay);
+          })();
+          </script>
         </div>
         <?php
     }
@@ -2819,6 +2946,9 @@ JS;
         $currency_label = $this->get_currency_label();
         $day_switch_hour = isset($preferences['day_switch_hour']) ? (int) $preferences['day_switch_hour'] : $this->get_day_switch_hour();
         $weekend_rollover_day = isset($preferences['weekend_rollover_day']) ? (int) $preferences['weekend_rollover_day'] : $this->get_weekend_rollover_day();
+        $weights_enabled = !empty($preferences['weights_enabled']);
+        $weight_unit_main = $this->sanitize_weight_unit((string)($preferences['weight_unit_main'] ?? 'g'), 'g');
+        $weight_unit_soup = $this->sanitize_weight_unit((string)($preferences['weight_unit_soup'] ?? 'l'), 'l');
         $price_placeholder = $this->get_price_placeholder_label();
         $menu_price_hint = $this->get_menu_price_hint();
         $static_items = $branding['static_menu_items'] ?? [];
@@ -3012,6 +3142,20 @@ JS;
             <label><input type="radio" name="soup_price_mode" value="included" <?php checked('included', $soup_mode); ?>> Polévka je v ceně menu (nezobrazovat cenu zvlášť)</label><br>
             <label><input type="radio" name="soup_price_mode" value="separate" <?php checked('separate', $soup_mode); ?>> Polévka se účtuje zvlášť (zobrazit cenu samostatně)</label>
             <p class="description">Nastavení ovlivní veřejné zobrazení jídelníčku i export do PDF.</p>
+          </fieldset>
+          <fieldset class="hs-branding__weights">
+            <legend><strong>Hmotnosti jídel</strong></legend>
+            <label><input type="hidden" name="weights_enabled" value="0"><input type="checkbox" name="weights_enabled" value="1" <?php checked(true, $weights_enabled); ?>> Sbírat a zobrazovat hmotnosti u polévek i jídel</label>
+            <p>
+              <label>Jednotka hlavních jídel
+                <input type="text" name="weight_unit_main" value="<?php echo esc_attr($weight_unit_main); ?>" class="small-text">
+              </label>
+              &nbsp;&nbsp;
+              <label>Jednotka polévek
+                <input type="text" name="weight_unit_soup" value="<?php echo esc_attr($weight_unit_soup); ?>" class="small-text">
+              </label>
+            </p>
+            <p class="description">Výchozí doporučení: jídla <strong>g</strong>, polévky <strong>l</strong>.</p>
           </fieldset>
           <fieldset class="hs-branding__pricing">
             <legend><strong>Zobrazení cen hlavních jídel</strong></legend>
@@ -3246,20 +3390,40 @@ JS;
                 add_post_meta($post_id, 'menu_date', $date, true);
             }
 
-            // Polévka
-            $soup_in = $week['soup'][$i] ?? [];
-            $soup_id = isset($soup_in['id']) ? intval($soup_in['id']) : 0;
-            $soup_title_raw = sanitize_text_field($soup_in['title'] ?? '');
-            $soup_price = sanitize_text_field($soup_in['price'] ?? '');
-            $soup_allergens = $this->sanitize_allergen_list($soup_in['allergens'] ?? []);
-            [$soup_id, $soup_title] = $this->resolve_meal_variant($soup_id, $soup_title_raw, $soup_price, $soup_allergens, [], false);
-            $soup = [
-                'id'        => $soup_id,
-                'title'     => $soup_title,
-                'price'     => $soup_price,
-                'allergens' => $soup_allergens,
-            ];
-            update_post_meta($post_id, 'soup', $soup);
+            // Polévky
+            $soups_raw = $week['soup'][$i] ?? [];
+            if (is_array($soups_raw) && isset($soups_raw['title'])) {
+                $soups_raw = [$soups_raw];
+            }
+            $soups = [];
+            if (is_array($soups_raw)) {
+                foreach ($soups_raw as $soup_in) {
+                    if (!is_array($soup_in)) {
+                        continue;
+                    }
+                    $soup_id = isset($soup_in['id']) ? intval($soup_in['id']) : 0;
+                    $soup_title_raw = sanitize_text_field($soup_in['title'] ?? '');
+                    $soup_price = sanitize_text_field($soup_in['price'] ?? '');
+                    $soup_weight = sanitize_text_field($soup_in['weight'] ?? '');
+                    $soup_allergens = $this->sanitize_allergen_list($soup_in['allergens'] ?? []);
+                    [$soup_id, $soup_title] = $this->resolve_meal_variant($soup_id, $soup_title_raw, $soup_price, $soup_allergens, [], false);
+                    if ($soup_title === '' && $soup_id <= 0) {
+                        continue;
+                    }
+                    $soups[] = [
+                        'id'        => $soup_id,
+                        'title'     => $soup_title,
+                        'price'     => $soup_price,
+                        'weight'    => $soup_weight,
+                        'allergens' => $soup_allergens,
+                    ];
+                }
+            }
+            if (empty($soups)) {
+                $soups = [['id'=>0,'title'=>'','price'=>'','weight'=>'','allergens'=>[]]];
+            }
+            update_post_meta($post_id, 'soups', $soups);
+            update_post_meta($post_id, 'soup', $soups[0]);
 
             // Hlavní jídla
             $mains = [];
@@ -3383,6 +3547,9 @@ JS;
             'currency_label'  => $this->sanitize_currency_label(isset($_POST['currency_label']) ? wp_unslash($_POST['currency_label']) : ''),
             'day_switch_hour' => $this->sanitize_day_switch_hour(isset($_POST['day_switch_hour']) ? wp_unslash($_POST['day_switch_hour']) : 12),
             'weekend_rollover_day' => $this->sanitize_weekend_rollover_day(isset($_POST['weekend_rollover_day']) ? wp_unslash($_POST['weekend_rollover_day']) : 6),
+            'weights_enabled' => !empty($_POST['weights_enabled']) ? 1 : 0,
+            'weight_unit_main' => $this->sanitize_weight_unit(isset($_POST['weight_unit_main']) ? (string) wp_unslash($_POST['weight_unit_main']) : 'g', 'g'),
+            'weight_unit_soup' => $this->sanitize_weight_unit(isset($_POST['weight_unit_soup']) ? (string) wp_unslash($_POST['weight_unit_soup']) : 'l', 'l'),
         ];
         update_option('hsp_menu_preferences', $preferences, false);
         $this->menu_preferences_cache = null;
@@ -3417,6 +3584,9 @@ JS;
             'pricing_mode'    => $week['pricing_mode'] ?? ($preferences['pricing_mode'] ?? 'per_item'),
             'show_sides'      => $this->should_manage_sides(),
             'currency_label'  => $this->get_currency_label(),
+            'weights_enabled' => $this->should_collect_weights(),
+            'weight_unit_main' => $this->get_weight_unit('main'),
+            'weight_unit_soup' => $this->get_weight_unit('soup'),
         ];
         $pdf = $exporter->build($week, $branding, $exportOptions);
 
@@ -3462,6 +3632,8 @@ JS;
         echo '<h4>Polévka</h4>';
         if (!empty($soup['title'])) {
             $line = esc_html($soup['title']);
+            $soupWeight = $this->format_weight_display($soup['weight'] ?? '', 'soup');
+            if ($soupWeight !== '') { $line .= ' (' . esc_html($soupWeight) . ')'; }
             if ($this->should_show_soup_price() && !empty($soup['price'])) {
                 $price_display = $this->format_price_for_display((string)$soup['price']);
                 if ($price_display !== '') {
@@ -3498,6 +3670,10 @@ JS;
                             continue;
                         }
                         $line = esc_html($row['title'] ?? '');
+                    $weight = $this->format_weight_display($row['weight'] ?? '', 'main');
+                    if ($weight !== '') { $line .= ' (' . esc_html($weight) . ')'; }
+                        $weight = $this->format_weight_display($row['weight'] ?? '', 'main');
+                        if ($weight !== '') { $line .= ' (' . esc_html($weight) . ')'; }
                         if (!empty($row['sides']) && is_array($row['sides'])) {
                             $names = [];
                             foreach ($row['sides'] as $side_id) {
@@ -3522,6 +3698,8 @@ JS;
                         continue;
                     }
                     $line = esc_html($row['title'] ?? '');
+                    $weight = $this->format_weight_display($row['weight'] ?? '', 'main');
+                    if ($weight !== '') { $line .= ' (' . esc_html($weight) . ')'; }
                     if (!empty($row['sides'])){
                         $names = [];
                         foreach ($row['sides'] as $side_id) {
@@ -3566,8 +3744,9 @@ JS;
         if ($column === 'menu_date'){
             echo esc_html( get_post_meta($post_id,'menu_date',true) );
         } elseif ($column === 'soup'){
-            $soup = get_post_meta($post_id,'soup',true);
-            echo esc_html( $soup['title'] ?? '' );
+            $soups = $this->normalize_soups_meta(get_post_meta($post_id,'soups',true));
+            if (empty($soups)) { $soups = $this->normalize_soups_meta(get_post_meta($post_id,'soup',true)); }
+            echo esc_html( $soups[0]['title'] ?? '' );
         } elseif ($column === 'mains'){
             $mains = get_post_meta($post_id,'mains',true);
             echo is_array($mains) ? count($mains) : 0;
@@ -3586,7 +3765,8 @@ JS;
         ]);
         if (!$posts) return '';
         $post_id = $posts[0]->ID;
-        $soup  = get_post_meta($post_id,'soup',true);
+        $soups = $this->normalize_soups_meta(get_post_meta($post_id,'soups',true));
+        if (empty($soups)) { $soups = $this->normalize_soups_meta(get_post_meta($post_id,'soup',true)); }
         $mains = get_post_meta($post_id,'mains',true);
         $show_soup_price = $this->should_show_soup_price();
         $use_groups = $this->should_use_menu_groups();
@@ -3600,16 +3780,23 @@ JS;
         $heading .= '</h4>';
         echo $heading;
         echo '<div class="hsp-body">';
-        if (!empty($soup['title'])){
-            echo '<div class="hsp-soup hsp-grid"'
-               . '><span class="hsp-title"><strong>Polévka:</strong> '.esc_html($soup['title']).'</span>';
-            if ($show_soup_price && !empty($soup['price'])) {
-                $price_display = $this->format_price_for_display((string)$soup['price']);
-                if ($price_display !== '') {
-                    echo '<span class="hsp-price">'.esc_html($price_display).'</span>';
+        if (!empty($soups)){
+            $soupIndex = 1;
+            foreach ($soups as $soup) {
+                if (empty($soup['title'])) { continue; }
+                $weight = $this->format_weight_display($soup['weight'] ?? '', 'soup');
+                $label = 'Polévka' . (count($soups) > 1 ? ' ' . $soupIndex : '') . ':';
+                echo '<div class="hsp-soup hsp-grid"'
+                   . '><span class="hsp-title"><strong>' . esc_html($label) . '</strong> '.esc_html($soup['title']) . ($weight !== '' ? ' <small>(' . esc_html($weight) . ')</small>' : '') . '</span>';
+                if ($show_soup_price && !empty($soup['price'])) {
+                    $price_display = $this->format_price_for_display((string)$soup['price']);
+                    if ($price_display !== '') {
+                        echo '<span class="hsp-price">'.esc_html($price_display).'</span>';
+                    }
                 }
+                echo '</div>';
+                $soupIndex++;
             }
-            echo '</div>';
         }
         if (!empty($mains) && is_array($mains)){
             if ($use_groups && !empty($menu_groups)) {
@@ -3641,7 +3828,11 @@ JS;
                         if (!is_array($row)) {
                             continue;
                         }
-                        $title = esc_html($row['title'] ?? '');
+                        $weight = $this->format_weight_display($row['weight'] ?? '', 'main');
+                    $title = esc_html($row['title'] ?? '');
+                        if ($weight !== '') {
+                            $title .= ' <small>(' . esc_html($weight) . ')</small>';
+                        }
                         $sidesText = '';
                         if ($use_sides && !empty($row['sides'])) {
                             $names = [];
@@ -3668,7 +3859,11 @@ JS;
                     if (!is_array($row)) {
                         continue;
                     }
+                    $weight = $this->format_weight_display($row['weight'] ?? '', 'main');
                     $title = esc_html($row['title'] ?? '');
+                        if ($weight !== '') {
+                            $title .= ' <small>(' . esc_html($weight) . ')</small>';
+                        }
                     $price_display = $this->format_price_for_display((string)($row['price'] ?? ''));
                     $price = $price_display !== '' ? '<span class="hsp-price">'.esc_html($price_display).'</span>' : '';
                     $sidesText = '';
@@ -3763,15 +3958,18 @@ JS;
             return [];
         }
         $post_id = (int)$posts[0]->ID;
-        $soup = get_post_meta($post_id, 'soup', true);
+        $soups = $this->normalize_soups_meta(get_post_meta($post_id, 'soups', true));
+        if (empty($soups)) { $soups = $this->normalize_soups_meta(get_post_meta($post_id, 'soup', true)); }
         $mains = get_post_meta($post_id, 'mains', true);
         $items = [];
-        if (!empty($soup['title'])) {
+        foreach ($soups as $soup) {
+            if (empty($soup['title'])) { continue; }
             $items[] = [
                 'type' => 'soup',
                 'meal_id' => (int)($soup['id'] ?? 0),
                 'title' => (string)$soup['title'],
                 'price' => (string)($soup['price'] ?? ''),
+                'weight' => (string)($soup['weight'] ?? ''),
                 'sides' => [],
                 'allergens' => is_array($soup['allergens'] ?? null) ? array_values(array_map('intval', $soup['allergens'])) : [],
             ];
@@ -3787,6 +3985,7 @@ JS;
                     'meal_id' => (int)($main['id'] ?? 0),
                     'title' => (string)$main['title'],
                     'price' => (string)($main['price'] ?? ''),
+                    'weight' => (string)($main['weight'] ?? ''),
                     'sides' => is_array($main['sides'] ?? null) ? array_values(array_map('intval', $main['sides'])) : [],
                     'allergens' => is_array($main['allergens'] ?? null) ? array_values(array_map('intval', $main['allergens'])) : [],
                 ];
