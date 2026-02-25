@@ -437,6 +437,9 @@ CSS;
                   if (ui.item.price !== undefined && ui.item.price !== null) {
                     $row.find('.price').val(ui.item.price);
                   }
+                  if ($row.find('.weight').length){
+                    $row.find('.weight').val(ui.item.weight !== undefined && ui.item.weight !== null ? ui.item.weight : '');
+                  }
                   var allergenList = Array.isArray(ui.item.allergens) ? ui.item.allergens : [];
                   $row.find('.meal-allergens').val(allergenList.length ? allergenList.join(',') : '');
                   if ($row.find('.sides').length){
@@ -2184,7 +2187,7 @@ JS;
      */
     private function last_usage_data($meal_id = 0, $title = ''){
         $title = trim((string)$title);
-        $result = ['price' => '', 'sides' => [], 'allergens' => []];
+        $result = ['price' => '', 'weight' => '', 'sides' => [], 'allergens' => []];
 
         if ($meal_id > 0) {
             $result['sides'] = $this->get_meal_term_ids($meal_id, TAX_SIDE);
@@ -2221,6 +2224,9 @@ JS;
                         if (!empty($row['price'])) {
                             $result['price'] = sanitize_text_field($row['price']);
                         }
+                        if (!empty($row['weight'])) {
+                            $result['weight'] = sanitize_text_field($row['weight']);
+                        }
                         $row_sides = array_map('intval', $row['sides'] ?? []);
                         if (!empty($row_sides)) {
                             $result['sides'] = array_values(array_unique($row_sides));
@@ -2233,25 +2239,35 @@ JS;
                     }
                 }
             }
-            $soup = get_post_meta($p->ID, 'soup', true);
-            if (!empty($soup)) {
+            $soups = $this->normalize_soups_meta(get_post_meta($p->ID, 'soups', true));
+            if (empty($soups)) {
+                $soups = $this->normalize_soups_meta(get_post_meta($p->ID, 'soup', true));
+            }
+            foreach ($soups as $soup) {
+                if (!is_array($soup) || empty($soup['title'])) {
+                    continue;
+                }
                 $match = false;
                 if ($meal_id && !empty($soup['id']) && intval($soup['id']) === intval($meal_id)) {
                     $match = true;
-                } elseif ($title !== '' && !empty($soup['title']) && strcasecmp($soup['title'], $title) === 0) {
+                } elseif ($title !== '' && strcasecmp((string)$soup['title'], $title) === 0) {
                     $match = true;
                 }
-                if ($match) {
-                    if (!empty($soup['price'])) {
-                        $result['price'] = sanitize_text_field($soup['price']);
-                    }
-                    $result['sides'] = []; // polévky obvykle bez příloh
-                    $row_allergens = array_map('intval', $soup['allergens'] ?? []);
-                    if (!empty($row_allergens)) {
-                        $result['allergens'] = array_values(array_unique($row_allergens));
-                    }
-                    return $result;
+                if (!$match) {
+                    continue;
                 }
+                if (!empty($soup['price'])) {
+                    $result['price'] = sanitize_text_field($soup['price']);
+                }
+                if (!empty($soup['weight'])) {
+                    $result['weight'] = sanitize_text_field($soup['weight']);
+                }
+                $result['sides'] = []; // polévky obvykle bez příloh
+                $row_allergens = array_map('intval', $soup['allergens'] ?? []);
+                if (!empty($row_allergens)) {
+                    $result['allergens'] = array_values(array_unique($row_allergens));
+                }
+                return $result;
             }
         }
         return $result;
@@ -2283,6 +2299,7 @@ JS;
                 'value'=>$title,
                 'id'=>get_the_ID(),
                 'price'=>$extra['price'],
+                'weight'=>$extra['weight'],
                 'sides'=>$extra['sides'],
                 'allergens'=>$extra['allergens'],
             ];
@@ -2316,6 +2333,7 @@ JS;
                                     'value'=>$t,
                                     'id'=>0,
                                     'price'=>$extra['price'],
+                                    'weight'=>$extra['weight'],
                                     'sides'=>$extra['sides'],
                                     'allergens'=>$extra['allergens'],
                                 ];
@@ -2340,6 +2358,7 @@ JS;
                                 'value'=>$t,
                                 'id'=>0,
                                 'price'=>$extra['price'],
+                                'weight'=>$extra['weight'],
                                 'sides'=>$extra['sides'],
                                 'allergens'=>$extra['allergens'],
                             ];
