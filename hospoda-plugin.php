@@ -144,6 +144,19 @@ class Hospoda_Plugin {
         add_action('wp_ajax_nopriv_hsp_get_week', [$this,'ajax_get_week']);
         add_action('wp_ajax_hsp_submit_order', [$this,'ajax_submit_order']);
         add_action('wp_ajax_nopriv_hsp_submit_order', [$this,'ajax_submit_order']);
+        add_filter('show_admin_bar', [$this, 'maybe_hide_admin_bar_for_customers']);
+    }
+
+    public function maybe_hide_admin_bar_for_customers($show): bool {
+        if (!is_user_logged_in()) {
+            return (bool) $show;
+        }
+
+        if (current_user_can('edit_posts') || current_user_can('manage_options')) {
+            return (bool) $show;
+        }
+
+        return false;
     }
 
     /**
@@ -3666,6 +3679,16 @@ JS;
         $mains = get_post_meta($post_id, 'mains', true);
         $items = [];
         $sides_map = $this->should_manage_sides() ? $this->get_sides_data()['map'] : [];
+        $group_prices = [];
+        if ($this->should_use_menu_groups()) {
+            foreach ($this->resolve_day_menu_groups($post_id) as $group) {
+                $group_key = isset($group['key']) ? sanitize_key((string)$group['key']) : '';
+                if ($group_key === '') {
+                    continue;
+                }
+                $group_prices[$group_key] = (string)($group['price'] ?? '');
+            }
+        }
         foreach ($soups as $soup) {
             if (empty($soup['title'])) { continue; }
             $weight = (string)($soup['weight'] ?? '');
@@ -3698,6 +3721,12 @@ JS;
                 }
                 $weight = (string)($main['weight'] ?? '');
                 $price = (string)($main['price'] ?? '');
+                if ($price === '') {
+                    $main_group_key = isset($main['menu_group']) ? sanitize_key((string)$main['menu_group']) : '';
+                    if ($main_group_key !== '' && isset($group_prices[$main_group_key])) {
+                        $price = (string)$group_prices[$main_group_key];
+                    }
+                }
                 $items[] = [
                     'type' => 'main',
                     'meal_id' => (int)($main['id'] ?? 0),
@@ -3993,7 +4022,8 @@ JS;
             . '.hsp-order-auth label{display:flex;flex-direction:column;gap:4px;font-weight:600;color:#1e293b}'
             . '.hsp-order-auth input[type=text],.hsp-order-auth input[type=password],.hsp-order-auth input[type=email]{width:100%;max-width:none;border:1px solid #cbd5e1;border-radius:8px;padding:9px 10px}'
             . '.hsp-order-auth .login-submit{margin:12px 0 0}'
-            . '.hsp-order-auth .button-primary{min-height:40px;padding:0 16px}'
+            . '.hsp-order-auth .button-primary,.hsp-order-auth input[type=submit],.hsp-order-auth #wp-submit{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 16px;background:#1d4ed8;border:1px solid #1d4ed8;color:#fff;border-radius:8px;font-weight:600;line-height:1.2;cursor:pointer;text-decoration:none}'
+            . '.hsp-order-auth .button-primary:hover,.hsp-order-auth input[type=submit]:hover,.hsp-order-auth #wp-submit:hover{background:#1e40af;border-color:#1e40af;color:#fff}'
             . '.hsp-order-auth__links{margin:14px 0 0;color:#334155}';
         wp_register_style('hsp-order-auth-inline', false, [], VERSION);
         wp_enqueue_style('hsp-order-auth-inline');
