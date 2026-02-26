@@ -3986,8 +3986,21 @@ JS;
             return '<p><strong>Jste přihlášen/a.</strong> <a class="button" href="' . esc_url($redirect) . '">Pokračovat na objednávku</a></p>';
         }
 
+        $auth_style = '.hsp-order-auth{max-width:560px;background:#fff;border:1px solid #d9e2ec;border-radius:12px;padding:18px 20px;box-shadow:0 2px 6px rgba(0,0,0,.05)}'
+            . '.hsp-order-auth h3{margin:0 0 12px;font-size:22px;color:#0f172a}'
+            . '.hsp-order-auth .description{color:#64748b}'
+            . '.hsp-order-auth .login-username,.hsp-order-auth .login-password,.hsp-order-auth .login-remember{margin:0 0 10px}'
+            . '.hsp-order-auth label{display:flex;flex-direction:column;gap:4px;font-weight:600;color:#1e293b}'
+            . '.hsp-order-auth input[type=text],.hsp-order-auth input[type=password],.hsp-order-auth input[type=email]{width:100%;max-width:none;border:1px solid #cbd5e1;border-radius:8px;padding:9px 10px}'
+            . '.hsp-order-auth .login-submit{margin:12px 0 0}'
+            . '.hsp-order-auth .button-primary{min-height:40px;padding:0 16px}'
+            . '.hsp-order-auth__links{margin:14px 0 0;color:#334155}';
+        wp_register_style('hsp-order-auth-inline', false, [], VERSION);
+        wp_enqueue_style('hsp-order-auth-inline');
+        wp_add_inline_style('hsp-order-auth-inline', $auth_style);
+
         ob_start();
-        echo '<div class="hsp-order-login">';
+        echo '<div class="hsp-order-auth hsp-order-login">';
         echo '<h3>Přihlášení zákazníka</h3>';
         wp_login_form([
             'echo' => true,
@@ -3998,7 +4011,7 @@ JS;
             'label_log_in' => 'Přihlásit se',
         ]);
         if ($register_url !== '') {
-            echo '<p class="hsp-order-register">Nemáte účet? <a href="' . esc_url($register_url) . '">Zaregistrujte se</a>.</p>';
+            echo '<p class="hsp-order-auth__links hsp-order-register">Nemáte účet? <a href="' . esc_url($register_url) . '">Zaregistrujte se</a>.</p>';
         }
         echo '<script>(function(){try{var c=document.cookie||"";if(c.indexOf("wordpress_logged_in_")!==-1){var target=' . wp_json_encode($redirect) . ';if(target){window.location.replace(target);}}}catch(e){}})();</script>';
         echo '</div>';
@@ -4014,6 +4027,17 @@ JS;
         if (is_user_logged_in()) {
             return '<p><strong>Jste přihlášen/a.</strong> <a class="button" href="' . esc_url($redirect) . '">Pokračovat na objednávku</a></p>';
         }
+
+        $auth_style = '.hsp-order-auth{max-width:560px;background:#fff;border:1px solid #d9e2ec;border-radius:12px;padding:18px 20px;box-shadow:0 2px 6px rgba(0,0,0,.05)}'
+            . '.hsp-order-auth h3{margin:0 0 12px;font-size:22px;color:#0f172a}'
+            . '.hsp-order-auth .description{color:#64748b}'
+            . '.hsp-order-auth label{display:flex;flex-direction:column;gap:4px;font-weight:600;color:#1e293b}'
+            . '.hsp-order-auth input[type=text],.hsp-order-auth input[type=password],.hsp-order-auth input[type=email]{width:100%;max-width:none;border:1px solid #cbd5e1;border-radius:8px;padding:9px 10px}'
+            . '.hsp-order-auth .button-primary{min-height:40px;padding:0 16px}'
+            . '.hsp-order-auth__links{margin:14px 0 0;color:#334155}';
+        wp_register_style('hsp-order-auth-inline', false, [], VERSION);
+        wp_enqueue_style('hsp-order-auth-inline');
+        wp_add_inline_style('hsp-order-auth-inline', $auth_style);
 
         $errors = [];
         $values = [
@@ -4090,7 +4114,7 @@ JS;
         }
 
         ob_start();
-        echo '<div class="hsp-order-register-box">';
+        echo '<div class="hsp-order-auth hsp-order-register-box">';
         echo '<h3>Registrace zákazníka</h3>';
         if (!empty($errors)) {
             echo '<div class="notice notice-error"><p>' . esc_html(implode(' ', $errors)) . '</p></div>';
@@ -4105,6 +4129,10 @@ JS;
         echo '<p><label>Adresa<br><input type="text" name="reg_address" required value="' . esc_attr($values['address']) . '" class="regular-text"></label></p>';
         echo '<p><button type="submit" name="hsp_order_register_submit" value="1" class="button button-primary">Vytvořit účet</button></p>';
         echo '</form>';
+        $login_url = $this->get_order_login_url($redirect);
+        if ($login_url !== '') {
+            echo '<p class="hsp-order-auth__links">Máte už účet? <a href="' . esc_url($login_url) . '">Zpět na přihlášení</a>.</p>';
+        }
         echo '</div>';
 
         return (string) ob_get_clean();
