@@ -4249,6 +4249,10 @@ JS;
 
         ob_start();
         echo '<div class="hsp-order-form hsp-order-form--card" id="hsp-order-form">';
+        if (isset($_GET['hsp_order_success'])) {
+            $order_number = isset($_GET['order']) ? sanitize_text_field((string) wp_unslash($_GET['order'])) : '';
+            echo '<div class="notice notice-success" style="margin:0 0 12px;"><p><strong>Objednávka byla úspěšně odeslána.</strong>' . ($order_number !== '' ? ' Číslo objednávky: <strong>' . esc_html($order_number) . '</strong>.' : '') . '</p></div>';
+        }
         echo '<h3>Objednávka jídel</h3>';
         echo '<p class="hsp-order-help">Vyberte jídla na celý týden a odešlete jednu souhrnnou objednávku.</p>';
         echo '<label class="hsp-order-label">Týden od pondělí <select id="hsp-order-week" class="hsp-order-select">';
@@ -4404,6 +4408,13 @@ JS;
     $.post(HSP_ORDER.ajax,{action:'hsp_submit_order',nonce:HSP_ORDER.nonce,payload:JSON.stringify(payload)})
       .done(function(res){
         if(res&&res.success){
+          try{
+            var u=new URL(window.location.href);
+            u.searchParams.set('hsp_order_success','1');
+            if(res.data&&res.data.order_number){u.searchParams.set('order',String(res.data.order_number));}
+            window.location.href=u.toString();
+            return;
+          }catch(e){}
           $('#hsp-order-msg').text('Objednávka přijata: '+res.data.order_number);
         }else{
           $('#hsp-order-msg').text((res&&res.data&&res.data.message)?res.data.message:'Objednávku se nepodařilo odeslat.');
@@ -4814,7 +4825,7 @@ JS;
         header('Content-Disposition: attachment; filename=rozvoz-' . $context['day_date'] . '.csv');
         $out = fopen('php://output', 'w');
         fputcsv($out, ['Filtr', $context['label']]);
-        fputcsv($out, ['Objednávka', 'Jméno', 'Telefon', 'Adresa', 'Položky']);
+        fputcsv($out, ['Datum', 'Jméno', 'Adresa', 'Jídlo']);
         foreach ($orders as $order) {
             $dtype = (string) get_post_meta($order->ID, 'delivery_type', true);
             if ($dtype !== 'delivery') {
@@ -4834,13 +4845,16 @@ JS;
             if (empty($item_label)) {
                 continue;
             }
-            fputcsv($out, [
-                $order->post_title,
-                get_post_meta($order->ID, 'customer_name', true),
-                get_post_meta($order->ID, 'customer_phone', true),
-                get_post_meta($order->ID, 'delivery_address', true),
-                implode('; ', $item_label),
-            ]);
+            $name = (string) get_post_meta($order->ID, 'customer_name', true);
+            $address = (string) get_post_meta($order->ID, 'delivery_address', true);
+            foreach ($item_label as $food_line) {
+                fputcsv($out, [
+                    $context['day_date'],
+                    $name,
+                    $address,
+                    $food_line,
+                ]);
+            }
         }
         fclose($out);
         exit;
@@ -4891,7 +4905,8 @@ JS;
         require_once __DIR__ . '/includes/class-simple-pdf.php';
         $pdf = new Simple_Pdf();
         $pdf->set_title('Rozvoz - ' . $context['label']);
-        $pdf->add_text('Rozvoz (' . $context['label'] . ')', ['font' => 'F2', 'size' => 15, 'spacing_after' => 10]);
+        $pdf->add_text('Rozvoz (' . $context['label'] . ')', ['font' => 'F2', 'size' => 15, 'spacing_after' => 8]);
+        $pdf->add_text('Množství | Jídlo | Jméno | Adresa', ['font' => 'F2', 'size' => 10, 'spacing_after' => 4]);
 
         $count = 0;
         foreach ($orders as $order) {
@@ -4904,8 +4919,15 @@ JS;
                 continue;
             }
             $count++;
-            $pdf->add_text((string)get_post_meta($order->ID, 'customer_name', true) . ' | ' . (string)get_post_meta($order->ID, 'delivery_address', true), ['font' => 'F2', 'size' => 11, 'spacing_after' => 2]);
-            $pdf->add_text(implode('; ', $labels), ['size' => 10, 'indent' => 8, 'spacing_after' => 4]);
+            $name = (string)get_post_meta($order->ID, 'customer_name', true);
+            $address = (string)get_post_meta($order->ID, 'delivery_address', true);
+            foreach ($labels as $label) {
+                $parts = explode(' x', $label);
+                $title = trim((string)($parts[0] ?? ''));
+                $qty = isset($parts[1]) ? (int)trim($parts[1]) : 1;
+                $pdf->add_text($qty . ' | ' . $title . ' | ' . $name . ' | ' . $address, ['size' => 10, 'spacing_after' => 1]);
+            }
+            $pdf->add_text('------------------------------------------------------------', ['size' => 9, 'spacing_after' => 2]);
         }
         if ($count === 0) {
             $pdf->add_text('Pro tento den nejsou žádné rozvozy.', ['size' => 11]);
@@ -5003,12 +5025,13 @@ JS;
         require_once __DIR__ . '/includes/class-simple-pdf.php';
         $pdf = new Simple_Pdf();
         $pdf->set_title('Kuchyň - ' . $context['label']);
-        $pdf->add_text('Kuchyň (' . $context['label'] . ')', ['font' => 'F2', 'size' => 15, 'spacing_after' => 10]);
+        $pdf->add_text('Kuchyň (' . $context['label'] . ')', ['font' => 'F2', 'size' => 15, 'spacing_after' => 8]);
+        $pdf->add_text('Množství | Jídlo', ['font' => 'F2', 'size' => 10, 'spacing_after' => 4]);
         if (empty($aggregate)) {
             $pdf->add_text('Pro tento den nejsou žádná jídla.', ['size' => 11]);
         } else {
             foreach ($aggregate as $title => $qty) {
-                $pdf->add_text($title . ' — ' . $qty . 'x', ['size' => 11, 'spacing_after' => 2]);
+                $pdf->add_text($qty . ' | ' . $title, ['size' => 11, 'spacing_after' => 1]);
             }
         }
 
@@ -5067,7 +5090,8 @@ JS;
         require_once __DIR__ . '/includes/class-simple-pdf.php';
         $pdf = new Simple_Pdf();
         $pdf->set_title('Vyzvednutí - ' . $context['label']);
-        $pdf->add_text('Vyzvednutí (' . $context['label'] . ')', ['font' => 'F2', 'size' => 15, 'spacing_after' => 10]);
+        $pdf->add_text('Vyzvednutí (' . $context['label'] . ')', ['font' => 'F2', 'size' => 15, 'spacing_after' => 8]);
+        $pdf->add_text('Množství | Jídlo | Jméno', ['font' => 'F2', 'size' => 10, 'spacing_after' => 4]);
 
         $count = 0;
         foreach ($orders as $order) {
@@ -5080,7 +5104,14 @@ JS;
                 continue;
             }
             $count++;
-            $pdf->add_text((string)get_post_meta($order->ID, 'customer_name', true) . ' — ' . implode('; ', $labels), ['size' => 11, 'spacing_after' => 2]);
+            $name = (string)get_post_meta($order->ID, 'customer_name', true);
+            foreach ($labels as $label) {
+                $parts = explode(' x', $label);
+                $title = trim((string)($parts[0] ?? ''));
+                $qty = isset($parts[1]) ? (int)trim($parts[1]) : 1;
+                $pdf->add_text($qty . ' | ' . $title . ' | ' . $name, ['size' => 10, 'spacing_after' => 1]);
+            }
+            $pdf->add_text('------------------------------------------------------------', ['size' => 9, 'spacing_after' => 2]);
         }
         if ($count === 0) {
             $pdf->add_text('Pro tento den nejsou žádná vyzvednutí.', ['size' => 11]);
