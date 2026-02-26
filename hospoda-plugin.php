@@ -4056,14 +4056,70 @@ JS;
         $ops_email = (string)($settings['notification_email'] ?? '');
         $customer_email = (string)$meta['customer_email'];
         $repl = ['{order_number}' => $order_number, '{menu_date}' => $week_start, '#{order_number}' => $order_number];
+        $order_recap = $this->build_order_recap_email_text($meta);
         if (is_email($ops_email)) {
-            wp_mail($ops_email, 'Nová objednávka ' . $order_number, strtr((string)($settings['ops_email_template'] ?? ''), $repl));
+            $ops_message = strtr((string)($settings['ops_email_template'] ?? ''), $repl);
+            $ops_message = trim($ops_message);
+            if ($ops_message !== '') {
+                $ops_message .= "\n\n" . $order_recap;
+            } else {
+                $ops_message = $order_recap;
+            }
+            wp_mail($ops_email, 'Nová objednávka ' . $order_number, $ops_message);
         }
         if (is_email($customer_email)) {
-            wp_mail($customer_email, 'Potvrzení objednávky ' . $order_number, strtr((string)($settings['customer_email_template'] ?? ''), $repl));
+            $customer_message = strtr((string)($settings['customer_email_template'] ?? ''), $repl);
+            $customer_message = trim($customer_message);
+            if ($customer_message !== '') {
+                $customer_message .= "\n\n" . $order_recap;
+            } else {
+                $customer_message = $order_recap;
+            }
+            wp_mail($customer_email, 'Potvrzení objednávky ' . $order_number, $customer_message);
         }
 
         return ['post_id' => $post_id, 'order_number' => $order_number, 'total' => $total];
+    }
+
+    private function build_order_recap_email_text(array $meta): string {
+        $lines = [];
+        $lines[] = 'Rekapitulace objednávky';
+        $lines[] = '--------------------';
+        $lines[] = 'Číslo: ' . (string)($meta['order_number'] ?? '');
+        $lines[] = 'Typ doručení: ' . $this->get_delivery_type_label((string)($meta['delivery_type'] ?? ''));
+        $address = (string)($meta['delivery_address'] ?? '');
+        if ($address !== '') {
+            $lines[] = 'Adresa: ' . $address;
+        }
+        $items = isset($meta['items']) && is_array($meta['items']) ? $meta['items'] : [];
+        if (!empty($items)) {
+            $lines[] = '';
+            $lines[] = 'Položky:';
+            foreach ($items as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                $qty = max(1, (int)($item['quantity'] ?? 1));
+                $title = (string)($item['title'] ?? 'Jídlo');
+                $date = (string)($item['menu_date'] ?? '');
+                $price = (string)($item['price'] ?? '0');
+                $price_num = (float)preg_replace('/[^0-9.,-]/', '', str_replace(',', '.', $price));
+                $line_total = max(0, $price_num) * $qty;
+                $label = $qty . '× ' . $title;
+                if ($date !== '') {
+                    $label .= ' [' . $date . ']';
+                }
+                $label .= ' — ' . $this->format_price_for_display((string)round($line_total, 2));
+                $lines[] = $label;
+            }
+        }
+        $totals = isset($meta['totals']) && is_array($meta['totals']) ? $meta['totals'] : [];
+        $lines[] = '';
+        $lines[] = 'Mezisoučet jídel: ' . $this->format_price_for_display((string)($totals['subtotal'] ?? '0'));
+        $lines[] = 'Rozvoz: ' . $this->format_price_for_display((string)($totals['delivery_fee'] ?? '0'));
+        $lines[] = 'Obaly: ' . $this->format_price_for_display((string)($totals['packaging_fee'] ?? '0'));
+        $lines[] = 'Celkem: ' . $this->format_price_for_display((string)($totals['total'] ?? '0'));
+        return implode("\n", $lines);
     }
 
     public function ajax_submit_order() {
@@ -4342,6 +4398,14 @@ JS;
         echo '</select></label>';
 
         echo '<div id="hsp-order-days" class="hsp-order-days"></div>';
+        echo '<div class="hsp-order-pricing" id="hsp-order-pricing">';
+        echo '<h4>Souhrn ceny objednávky</h4>';
+        echo '<div class="hsp-order-pricing-row"><span>Mezisoučet jídel</span><strong id="hsp-order-subtotal">0,00 Kč</strong></div>';
+        echo '<div class="hsp-order-pricing-row"><span>Rozvoz</span><strong id="hsp-order-delivery-fee">0,00 Kč</strong></div>';
+        echo '<div class="hsp-order-pricing-row"><span>Obal</span><strong id="hsp-order-packaging-fee">0,00 Kč</strong></div>';
+        echo '<div class="hsp-order-pricing-row hsp-order-pricing-row--total"><span>Celkem</span><strong id="hsp-order-total">0,00 Kč</strong></div>';
+        echo '<p class="description" id="hsp-order-pricing-note">Cena rozvozu se dopočítá podle adresy a nastavení rozvozových zón.</p>';
+        echo '</div>';
         echo '<div class="hsp-order-contact">';
         echo '<h4>Kontaktní údaje</h4>';
         echo '<div class="hsp-order-grid">';
@@ -4365,7 +4429,8 @@ JS;
                 if ($price_label !== '') {
                     $label_full .= ' (' . $price_label . ')';
                 }
-                echo '<option value="' . esc_attr($pack_key) . '"' . selected($default_packaging, $pack_key, false) . '>' . esc_html($label_full) . '</option>';
+                $pack_price_value = (float)str_replace(',', '.', (string)($pack['price'] ?? '0'));
+                echo '<option value="' . esc_attr($pack_key) . '" data-price="' . esc_attr((string)round(max(0, $pack_price_value), 2)) . '"' . selected($default_packaging, $pack_key, false) . '>' . esc_html($label_full) . '</option>';
             }
             echo '</select></label>';
         }
@@ -4399,7 +4464,12 @@ JS;
                . '.hsp-order-gdpr{margin:12px 0}'
                . '#hsp-order-submit{min-height:40px;padding:0 16px}'
                . '.hsp-order-help{color:#475569;margin:.25rem 0 .75rem}'
-               . '.hsp-order-day--closed{opacity:.55}';
+               . '.hsp-order-day--closed{opacity:.55}'
+               . '.hsp-order-pricing{margin:8px 0 16px;padding:14px;border:1px solid #d8e3f2;border-radius:12px;background:#f8fafc}'
+               . '.hsp-order-pricing h4{margin:0 0 10px;font-size:18px}'
+               . '.hsp-order-pricing-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed #d5dee8}'
+               . '.hsp-order-pricing-row:last-of-type{border-bottom:0}'
+               . '.hsp-order-pricing-row--total{font-size:18px;font-weight:700;padding-top:10px}';
         wp_register_style('hsp-order-inline', false, [], VERSION);
         wp_enqueue_style('hsp-order-inline');
         wp_add_inline_style('hsp-order-inline', $style);
@@ -4427,6 +4497,13 @@ JS;
     var days=['Neděle','Pondělí','Úterý','Středa','Čtvrtek','Pátek','Sobota'];
     return days[d.getDay()]+' • '+d.getDate()+'. '+(d.getMonth()+1)+'. '+d.getFullYear();
   }
+  function parseMoney(val){
+    var n=parseFloat(String(val||'').replace(',', '.').replace(/[^0-9.-]/g,''));
+    return Number.isFinite(n)?Math.max(0,n):0;
+  }
+  function fmtPrice(n){
+    return (Math.round((Number(n)||0)*100)/100).toFixed(2).replace('.', ',')+' Kč';
+  }
   function render(){
     var weekStart=$("#hsp-order-week").val();
     var days=weeks[weekStart]||{};
@@ -4448,7 +4525,7 @@ JS;
           var meta=[];
           if(it.weight_label){ meta.push(esc(it.weight_label)); }
           if(it.price_label){ meta.push(esc(it.price_label)); }
-          html+="<label class='hsp-order-item'><span><input type='checkbox' class='hsp-order-item-check' data-date='"+date+"' data-title='"+esc(it.title)+"' data-type='soup'"+dis+"> Polévka: "+esc(it.title)+(meta.length?" <small>("+meta.join(' • ')+")</small>":"")+"</span><input type='number' min='1' value='1' class='hsp-order-qty' data-date='"+date+"' data-index='"+idx+"'"+dis+"></label>";
+          html+="<label class='hsp-order-item'><span><input type='checkbox' class='hsp-order-item-check' data-date='"+date+"' data-title='"+esc(it.title)+"' data-type='soup' data-price='"+esc(it.price||'')+"'"+dis+"> Polévka: "+esc(it.title)+(meta.length?" <small>("+meta.join(' • ')+")</small>":"")+"</span><input type='number' min='1' value='1' class='hsp-order-qty' data-date='"+date+"' data-index='"+idx+"'"+dis+"></label>";
         });
         html+="</div>";
       }
@@ -4467,13 +4544,38 @@ JS;
             });
             sideSelect+="</select>";
           }
-          html+="<label class='hsp-order-item'><span><input type='checkbox' class='hsp-order-item-check' data-date='"+date+"' data-title='"+esc(it.title)+"' data-type='main'"+dis+"> "+esc(it.title)+(meta.length?" <small>("+meta.join(' • ')+")</small>":"")+"</span><div class='hsp-order-item-controls'>"+sideSelect+"<input type='number' min='1' value='1' class='hsp-order-qty' data-date='"+date+"' data-index='"+idx+"'"+dis+"></div></label>";
+          html+="<label class='hsp-order-item'><span><input type='checkbox' class='hsp-order-item-check' data-date='"+date+"' data-title='"+esc(it.title)+"' data-type='main' data-price='"+esc(it.price||'')+"'"+dis+"> "+esc(it.title)+(meta.length?" <small>("+meta.join(' • ')+")</small>":"")+"</span><div class='hsp-order-item-controls'>"+sideSelect+"<input type='number' min='1' value='1' class='hsp-order-qty' data-date='"+date+"' data-index='"+idx+"'"+dis+"></div></label>";
         });
         html+="</div>";
       }
       html+='</div></div>';
     });
     $("#hsp-order-days").html(html);
+    recalcPricing();
+  }
+  function recalcPricing(){
+    var subtotal=0;
+    $('.hsp-order-item-check:checked').each(function(){
+      var $row=$(this).closest('.hsp-order-item');
+      var qty=parseInt($row.find('.hsp-order-qty').val(),10)||1;
+      var price=parseMoney($(this).data('price'));
+      subtotal+=price*Math.max(1,qty);
+    });
+    var deliveryType=$("input[name='hsp-order-delivery']:checked").val()||'pickup';
+    var packagingFee=0;
+    if(HSP_ORDER.packagingEnabled){
+      packagingFee=parseMoney($('#hsp-order-packaging option:selected').data('price'));
+    }
+    var total=subtotal+packagingFee;
+    $('#hsp-order-subtotal').text(fmtPrice(subtotal));
+    $('#hsp-order-packaging-fee').text(fmtPrice(packagingFee));
+    if(deliveryType==='delivery'){
+      $('#hsp-order-delivery-fee').text('Bude dopočteno');
+      $('#hsp-order-total').text(fmtPrice(total)+' + rozvoz');
+    }else{
+      $('#hsp-order-delivery-fee').text('0,00 Kč');
+      $('#hsp-order-total').text(fmtPrice(total));
+    }
   }
   function syncDelivery(){
     var type=$("input[name='hsp-order-delivery']:checked").val()||'pickup';
@@ -4483,10 +4585,12 @@ JS;
     else{$wrap.addClass('is-hidden');}
     return type;
   }
-  $(document).on('change','#hsp-order-week',render);
-  $(document).on('change',"input[name='hsp-order-delivery']",syncDelivery);
+  $(document).on('change','#hsp-order-week',function(){render();});
+  $(document).on('change',"input[name='hsp-order-delivery']",function(){syncDelivery();recalcPricing();});
+  $(document).on('change input','.hsp-order-item-check,.hsp-order-qty,#hsp-order-packaging',recalcPricing);
   render();
   syncDelivery();
+  recalcPricing();
 
   $(document).on('click','#hsp-order-submit',function(){
     var weekStart=$("#hsp-order-week").val();
@@ -4866,16 +4970,38 @@ JS;
                 $items = get_post_meta($order_id, 'items', true);
                 $address = (string)get_post_meta($order_id, 'delivery_address', true);
                 $note = (string)get_post_meta($order_id, 'note', true);
+                $totals = get_post_meta($order_id, 'totals', true);
+                $packaging = get_post_meta($order_id, 'packaging', true);
                 echo '<hr><h2>Detail objednávky ' . esc_html($order_post->post_title) . '</h2>';
-                echo '<p><strong>Adresa:</strong> ' . esc_html($address) . '</p><p><strong>Poznámka:</strong> ' . esc_html($note) . '</p>';
+                echo '<p><strong>Adresa:</strong> ' . esc_html($address !== '' ? $address : '—') . '</p><p><strong>Poznámka:</strong> ' . esc_html($note !== '' ? $note : '—') . '</p>';
                 if (is_array($items) && !empty($items)) {
-                    echo '<ul>';
+                    echo '<table class="widefat striped" style="max-width:980px"><thead><tr><th>Datum</th><th>Položka</th><th>Množství</th><th>Cena/ks</th><th>Celkem</th></tr></thead><tbody>';
                     foreach ($items as $item) {
-                        $lineDate = !empty($item['menu_date']) ? (' [' . $item['menu_date'] . ']') : '';
-                        echo '<li>' . esc_html((string)($item['title'] ?? '') . $lineDate) . ' × ' . esc_html((string)($item['quantity'] ?? 1)) . '</li>';
+                        $lineDate = (string)($item['menu_date'] ?? '');
+                        $qty = max(1, (int)($item['quantity'] ?? 1));
+                        $price_raw = (string)($item['price'] ?? '0');
+                        $price_num = (float)preg_replace('/[^0-9.,-]/', '', str_replace(',', '.', $price_raw));
+                        $line_total = max(0, $price_num) * $qty;
+                        echo '<tr>';
+                        echo '<td>' . esc_html($lineDate !== '' ? $lineDate : '—') . '</td>';
+                        echo '<td>' . esc_html((string)($item['title'] ?? '')) . '</td>';
+                        echo '<td>' . esc_html((string)$qty) . '</td>';
+                        echo '<td>' . esc_html($this->format_price_for_display((string)round(max(0, $price_num), 2))) . '</td>';
+                        echo '<td>' . esc_html($this->format_price_for_display((string)round($line_total, 2))) . '</td>';
+                        echo '</tr>';
                     }
-                    echo '</ul>';
+                    echo '</tbody></table>';
                 }
+                if (!is_array($totals)) {
+                    $totals = [];
+                }
+                $pack_label = is_array($packaging) ? (string)($packaging['label'] ?? '') : '';
+                echo '<div style="margin:12px 0 16px;max-width:440px;background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:10px 12px;">';
+                echo '<p style="margin:4px 0;display:flex;justify-content:space-between;gap:10px;"><span>Mezisoučet jídel</span><strong>' . esc_html($this->format_price_for_display((string)($totals['subtotal'] ?? '0'))) . '</strong></p>';
+                echo '<p style="margin:4px 0;display:flex;justify-content:space-between;gap:10px;"><span>Rozvoz</span><strong>' . esc_html($this->format_price_for_display((string)($totals['delivery_fee'] ?? '0'))) . '</strong></p>';
+                echo '<p style="margin:4px 0;display:flex;justify-content:space-between;gap:10px;"><span>Obal' . ($pack_label !== '' ? ' (' . esc_html($pack_label) . ')' : '') . '</span><strong>' . esc_html($this->format_price_for_display((string)($totals['packaging_fee'] ?? '0'))) . '</strong></p>';
+                echo '<p style="margin:8px 0 0;display:flex;justify-content:space-between;gap:10px;font-size:16px;"><span><strong>Celkem</strong></span><strong>' . esc_html($this->format_price_for_display((string)($totals['total'] ?? '0'))) . '</strong></p>';
+                echo '</div>';
                 echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
                 wp_nonce_field('hsp_order_update_status_' . $order_id);
                 echo '<input type="hidden" name="action" value="hsp_order_update_status"><input type="hidden" name="order_id" value="' . esc_attr((string)$order_id) . '">';
