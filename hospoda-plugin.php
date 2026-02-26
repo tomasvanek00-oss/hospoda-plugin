@@ -126,8 +126,11 @@ class Hospoda_Plugin {
         add_action('admin_post_hospoda_save_branding', [$this,'handle_save_branding']);
         add_action('admin_post_hospoda_export_week_pdf', [$this,'handle_export_week_pdf']);
         add_action('admin_post_hsp_order_export_delivery_csv', [$this,'handle_order_export_delivery_csv']);
+        add_action('admin_post_hsp_order_export_delivery_pdf', [$this,'handle_order_export_delivery_pdf']);
         add_action('admin_post_hsp_order_export_kitchen_csv', [$this,'handle_order_export_kitchen_csv']);
-        add_action('admin_post_hsp_order_export_orders_pdf', [$this,'handle_order_export_orders_pdf']);
+        add_action('admin_post_hsp_order_export_kitchen_pdf', [$this,'handle_order_export_kitchen_pdf']);
+        add_action('admin_post_hsp_order_export_pickup_csv', [$this,'handle_order_export_pickup_csv']);
+        add_action('admin_post_hsp_order_export_pickup_pdf', [$this,'handle_order_export_pickup_pdf']);
         add_action('admin_post_hsp_order_update_status', [$this,'handle_order_status_update']);
         add_shortcode('poledni_menu', [$this,'shortcode_menu']);
         add_shortcode('hsp_order_form', [$this,'shortcode_order_form']);
@@ -4679,9 +4682,12 @@ JS;
 
         if ($orders_tab === 'day') {
             echo '<p>';
-            echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_delivery_csv', $context)) . '">Export rozvoz CSV</a> ';
-            echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_kitchen_csv', $context)) . '">Export kuchyň CSV</a> ';
-            echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_orders_pdf', $context)) . '">Export PDF</a>';
+            echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_delivery_csv', $context)) . '">Rozvoz CSV</a> ';
+            echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_delivery_pdf', $context)) . '">Rozvoz PDF</a> ';
+            echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_kitchen_csv', $context)) . '">Kuchyň CSV</a> ';
+            echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_kitchen_pdf', $context)) . '">Kuchyň PDF</a> ';
+            echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_pickup_csv', $context)) . '">Vyzvednutí CSV</a> ';
+            echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_pickup_pdf', $context)) . '">Vyzvednutí PDF</a>';
             echo '</p>';
 
             echo '<div style="background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:12px 14px;margin:0 0 14px;max-width:900px;">';
@@ -4840,17 +4846,12 @@ JS;
         exit;
     }
 
-    public function handle_order_export_kitchen_csv() {
-        if (!current_user_can('edit_posts')) {
-            wp_die();
-        }
-        check_admin_referer('hsp_order_exports');
-
+    private function get_day_export_context_from_request(): array {
         $day = isset($_GET['filter_day']) ? sanitize_text_field((string) wp_unslash($_GET['filter_day'])) : '';
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) {
             wp_die('Neplatný den exportu.');
         }
-        $context = [
+        return [
             'mode' => 'day',
             'day_date' => $day,
             'start' => $day,
@@ -4858,6 +4859,76 @@ JS;
             'label' => 'Den ' . wp_date('j. n. Y', strtotime($day)),
             'week_start' => $day,
         ];
+    }
+
+    private function get_order_item_labels_for_day(int $order_id, string $day): array {
+        $labels = [];
+        $items = get_post_meta($order_id, 'items', true);
+        if (!is_array($items)) {
+            return $labels;
+        }
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            if ((string)($item['menu_date'] ?? '') !== $day) {
+                continue;
+            }
+            $labels[] = (string)($item['title'] ?? '') . ' x' . (int)($item['quantity'] ?? 1);
+        }
+        return array_values(array_filter($labels));
+    }
+
+    public function handle_order_export_delivery_pdf() {
+        if (!current_user_can('edit_posts')) {
+            wp_die();
+        }
+        check_admin_referer('hsp_order_exports');
+
+        $context = $this->get_day_export_context_from_request();
+        $orders = $this->query_orders_for_context($context, 500);
+
+        require_once __DIR__ . '/includes/class-simple-pdf.php';
+        $pdf = new Simple_Pdf();
+        $pdf->set_title('Rozvoz - ' . $context['label']);
+        $pdf->add_text('Rozvoz (' . $context['label'] . ')', ['font' => 'F2', 'size' => 15, 'spacing_after' => 10]);
+
+        $count = 0;
+        foreach ($orders as $order) {
+            $dtype = (string) get_post_meta($order->ID, 'delivery_type', true);
+            if ($dtype !== 'delivery') {
+                continue;
+            }
+            $labels = $this->get_order_item_labels_for_day((int)$order->ID, (string)$context['day_date']);
+            if (empty($labels)) {
+                continue;
+            }
+            $count++;
+            $pdf->add_text((string)get_post_meta($order->ID, 'customer_name', true) . ' | ' . (string)get_post_meta($order->ID, 'delivery_address', true), ['font' => 'F2', 'size' => 11, 'spacing_after' => 2]);
+            $pdf->add_text(implode('; ', $labels), ['size' => 10, 'indent' => 8, 'spacing_after' => 4]);
+        }
+        if ($count === 0) {
+            $pdf->add_text('Pro tento den nejsou žádné rozvozy.', ['size' => 11]);
+        }
+
+        $content = $pdf->output();
+        if (!headers_sent()) {
+            nocache_headers();
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="rozvoz-' . $context['day_date'] . '.pdf"');
+            header('Content-Length: ' . strlen($content));
+        }
+        echo $content;
+        exit;
+    }
+
+    public function handle_order_export_kitchen_csv() {
+        if (!current_user_can('edit_posts')) {
+            wp_die();
+        }
+        check_admin_referer('hsp_order_exports');
+
+        $context = $this->get_day_export_context_from_request();
         $aggregate = [];
         $orders = $this->query_orders_for_context($context, 500);
         foreach ($orders as $order) {
@@ -4899,69 +4970,127 @@ JS;
         exit;
     }
 
-    public function handle_order_export_orders_pdf() {
+    public function handle_order_export_kitchen_pdf() {
         if (!current_user_can('edit_posts')) {
             wp_die();
         }
         check_admin_referer('hsp_order_exports');
 
-        $day = isset($_GET['filter_day']) ? sanitize_text_field((string) wp_unslash($_GET['filter_day'])) : '';
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) {
-            wp_die('Neplatný den exportu.');
+        $context = $this->get_day_export_context_from_request();
+        $aggregate = [];
+        $orders = $this->query_orders_for_context($context, 500);
+        foreach ($orders as $order) {
+            $items = get_post_meta($order->ID, 'items', true);
+            if (!is_array($items)) {
+                continue;
+            }
+            foreach ($items as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                if ((string)($item['menu_date'] ?? '') !== $context['day_date']) {
+                    continue;
+                }
+                $title = (string)($item['title'] ?? '');
+                if ($title === '') {
+                    continue;
+                }
+                $aggregate[$title] = ($aggregate[$title] ?? 0) + (int)($item['quantity'] ?? 1);
+            }
         }
-        $context = [
-            'mode' => 'day',
-            'day_date' => $day,
-            'start' => $day,
-            'end' => $day,
-            'label' => 'Den ' . wp_date('j. n. Y', strtotime($day)),
-            'week_start' => $day,
-        ];
-        $orders = $this->query_orders_for_context($context, 250);
+        arsort($aggregate);
 
         require_once __DIR__ . '/includes/class-simple-pdf.php';
         $pdf = new Simple_Pdf();
-        $pdf->set_title('Objednávky - ' . $context['label']);
-        $pdf->add_text('Objednávky (' . $context['label'] . ')', ['font' => 'F2', 'size' => 15, 'spacing_after' => 10]);
-
-        if (empty($orders)) {
-            $pdf->add_text('Pro zvolený filtr nejsou objednávky.', ['size' => 11]);
-        }
-
-        foreach ($orders as $order) {
-            $menu_date = (string)get_post_meta($order->ID, 'menu_date', true);
-            $name = (string)get_post_meta($order->ID, 'customer_name', true);
-            $phone = (string)get_post_meta($order->ID, 'customer_phone', true);
-            $address = (string)get_post_meta($order->ID, 'delivery_address', true);
-            $totals = get_post_meta($order->ID, 'totals', true);
-            $total_price = is_array($totals) ? (string)($totals['total'] ?? '') : '';
-            $items = get_post_meta($order->ID, 'items', true);
-
-            $pdf->add_text((string)$order->post_title . ' | ' . $menu_date . ' | ' . $name . ' | ' . $phone, ['font' => 'F2', 'size' => 11, 'spacing_after' => 3]);
-            if ($address !== '') {
-                $pdf->add_text('Adresa: ' . $address, ['size' => 10, 'spacing_after' => 2]);
+        $pdf->set_title('Kuchyň - ' . $context['label']);
+        $pdf->add_text('Kuchyň (' . $context['label'] . ')', ['font' => 'F2', 'size' => 15, 'spacing_after' => 10]);
+        if (empty($aggregate)) {
+            $pdf->add_text('Pro tento den nejsou žádná jídla.', ['size' => 11]);
+        } else {
+            foreach ($aggregate as $title => $qty) {
+                $pdf->add_text($title . ' — ' . $qty . 'x', ['size' => 11, 'spacing_after' => 2]);
             }
-            if (is_array($items)) {
-                foreach ($items as $item) {
-                    if ((string)($item['menu_date'] ?? '') !== $context['day_date']) {
-                        continue;
-                    }
-                    $lineDate = !empty($item['menu_date']) ? ('[' . $item['menu_date'] . '] ') : '';
-                    $pdf->add_text('• ' . $lineDate . (string)($item['title'] ?? '') . ' x' . (int)($item['quantity'] ?? 1), ['size' => 10, 'indent' => 8, 'spacing_after' => 1]);
-                }
-            }
-            $priceLabel = $this->format_price_for_display($total_price);
-            if ($priceLabel !== '') {
-                $pdf->add_text('Celkem: ' . $priceLabel, ['size' => 10, 'spacing_after' => 4]);
-            }
-            $pdf->add_spacer(5);
         }
 
         $content = $pdf->output();
         if (!headers_sent()) {
             nocache_headers();
             header('Content-Type: application/pdf');
-            header('Content-Disposition: attachment; filename="objednavky-' . $context['start'] . '-' . $context['end'] . '.pdf"');
+            header('Content-Disposition: attachment; filename="kuchyn-' . $context['day_date'] . '.pdf"');
+            header('Content-Length: ' . strlen($content));
+        }
+        echo $content;
+        exit;
+    }
+
+    public function handle_order_export_pickup_csv() {
+        if (!current_user_can('edit_posts')) {
+            wp_die();
+        }
+        check_admin_referer('hsp_order_exports');
+
+        $context = $this->get_day_export_context_from_request();
+        $orders = $this->query_orders_for_context($context, 500);
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename=vyzvednuti-' . $context['day_date'] . '.csv');
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['Filtr', $context['label']]);
+        fputcsv($out, ['Jméno', 'Jídlo']);
+        foreach ($orders as $order) {
+            $dtype = (string) get_post_meta($order->ID, 'delivery_type', true);
+            if ($dtype !== 'pickup') {
+                continue;
+            }
+            $labels = $this->get_order_item_labels_for_day((int)$order->ID, (string)$context['day_date']);
+            if (empty($labels)) {
+                continue;
+            }
+            fputcsv($out, [
+                get_post_meta($order->ID, 'customer_name', true),
+                implode('; ', $labels),
+            ]);
+        }
+        fclose($out);
+        exit;
+    }
+
+    public function handle_order_export_pickup_pdf() {
+        if (!current_user_can('edit_posts')) {
+            wp_die();
+        }
+        check_admin_referer('hsp_order_exports');
+
+        $context = $this->get_day_export_context_from_request();
+        $orders = $this->query_orders_for_context($context, 500);
+
+        require_once __DIR__ . '/includes/class-simple-pdf.php';
+        $pdf = new Simple_Pdf();
+        $pdf->set_title('Vyzvednutí - ' . $context['label']);
+        $pdf->add_text('Vyzvednutí (' . $context['label'] . ')', ['font' => 'F2', 'size' => 15, 'spacing_after' => 10]);
+
+        $count = 0;
+        foreach ($orders as $order) {
+            $dtype = (string) get_post_meta($order->ID, 'delivery_type', true);
+            if ($dtype !== 'pickup') {
+                continue;
+            }
+            $labels = $this->get_order_item_labels_for_day((int)$order->ID, (string)$context['day_date']);
+            if (empty($labels)) {
+                continue;
+            }
+            $count++;
+            $pdf->add_text((string)get_post_meta($order->ID, 'customer_name', true) . ' — ' . implode('; ', $labels), ['size' => 11, 'spacing_after' => 2]);
+        }
+        if ($count === 0) {
+            $pdf->add_text('Pro tento den nejsou žádná vyzvednutí.', ['size' => 11]);
+        }
+
+        $content = $pdf->output();
+        if (!headers_sent()) {
+            nocache_headers();
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="vyzvednuti-' . $context['day_date'] . '.pdf"');
             header('Content-Length: ' . strlen($content));
         }
         echo $content;
