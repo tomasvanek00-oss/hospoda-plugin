@@ -3665,15 +3665,21 @@ JS;
         if (empty($soups)) { $soups = $this->normalize_soups_meta(get_post_meta($post_id, 'soup', true)); }
         $mains = get_post_meta($post_id, 'mains', true);
         $items = [];
+        $sides_map = $this->should_manage_sides() ? $this->get_sides_data()['map'] : [];
         foreach ($soups as $soup) {
             if (empty($soup['title'])) { continue; }
+            $weight = (string)($soup['weight'] ?? '');
+            $price = (string)($soup['price'] ?? '');
             $items[] = [
                 'type' => 'soup',
                 'meal_id' => (int)($soup['id'] ?? 0),
                 'title' => (string)$soup['title'],
-                'price' => (string)($soup['price'] ?? ''),
-                'weight' => (string)($soup['weight'] ?? ''),
+                'price' => $price,
+                'price_label' => $this->format_price_for_display($price),
+                'weight' => $weight,
+                'weight_label' => $this->format_weight_display($weight, 'soup'),
                 'sides' => [],
+                'side_options' => [],
                 'allergens' => is_array($soup['allergens'] ?? null) ? array_values(array_map('intval', $soup['allergens'])) : [],
             ];
         }
@@ -3683,13 +3689,25 @@ JS;
                 if (!is_array($main) || empty($main['title'])) {
                     continue;
                 }
+                $side_ids = is_array($main['sides'] ?? null) ? array_values(array_map('intval', $main['sides'])) : [];
+                $side_options = [];
+                foreach ($side_ids as $side_id) {
+                    if ($side_id > 0 && isset($sides_map[$side_id])) {
+                        $side_options[] = ['id' => $side_id, 'name' => (string)$sides_map[$side_id]];
+                    }
+                }
+                $weight = (string)($main['weight'] ?? '');
+                $price = (string)($main['price'] ?? '');
                 $items[] = [
                     'type' => 'main',
                     'meal_id' => (int)($main['id'] ?? 0),
                     'title' => (string)$main['title'],
-                    'price' => (string)($main['price'] ?? ''),
-                    'weight' => (string)($main['weight'] ?? ''),
-                    'sides' => is_array($main['sides'] ?? null) ? array_values(array_map('intval', $main['sides'])) : [],
+                    'price' => $price,
+                    'price_label' => $this->format_price_for_display($price),
+                    'weight' => $weight,
+                    'weight_label' => $this->format_weight_display($weight, 'main'),
+                    'sides' => $side_ids,
+                    'side_options' => $side_options,
                     'allergens' => is_array($main['allergens'] ?? null) ? array_values(array_map('intval', $main['allergens'])) : [],
                 ];
             }
@@ -3791,13 +3809,14 @@ JS;
                     continue;
                 }
                 $title = sanitize_text_field((string)($row['title'] ?? ''));
+                $type = sanitize_key((string)($row['type'] ?? ''));
                 $qty = max(1, (int)($row['quantity'] ?? 1));
                 if ($max_item_qty > 0) {
                     $qty = min($max_item_qty, $qty);
                 }
                 $found = null;
                 foreach ($day_items as $item) {
-                    if ($item['title'] === $title) {
+                    if ($item['title'] === $title && ($type === '' || $type === (string)($item['type'] ?? ''))) {
                         $found = $item;
                         break;
                     }
@@ -3808,6 +3827,17 @@ JS;
                 $price_num = (float)preg_replace('/[^0-9.,-]/', '', str_replace(',', '.', (string)($found['price'] ?? '0')));
                 $line_total = max(0, $price_num) * $qty;
                 $subtotal += $line_total;
+                $selected_sides = [];
+                if (isset($row['sides']) && is_array($row['sides'])) {
+                    $selected_sides = array_values(array_filter(array_map('intval', $row['sides'])));
+                }
+                $allowed_sides = isset($found['sides']) && is_array($found['sides']) ? array_values(array_map('intval', $found['sides'])) : [];
+                if (!empty($selected_sides) && !empty($allowed_sides)) {
+                    $selected_sides = array_values(array_intersect($selected_sides, $allowed_sides));
+                } elseif (empty($selected_sides)) {
+                    $selected_sides = $allowed_sides;
+                }
+
                 $items[] = [
                     'menu_date' => $menu_date,
                     'type' => $found['type'],
@@ -3815,7 +3845,8 @@ JS;
                     'title' => $found['title'],
                     'quantity' => $qty,
                     'price' => (string)($found['price'] ?? ''),
-                    'sides' => $found['sides'] ?? [],
+                    'weight' => (string)($found['weight'] ?? ''),
+                    'sides' => $selected_sides,
                     'allergens' => $found['allergens'] ?? [],
                     'note' => sanitize_text_field((string)($row['note'] ?? '')),
                 ];
@@ -4153,9 +4184,12 @@ JS;
                . '.hsp-order-days{display:grid;grid-template-columns:1fr;gap:12px;margin:14px 0}'
                . '.hsp-order-day{border:1px solid #d8e3f2;border-radius:12px;padding:12px 14px;background:#f8fbff}'
                . '.hsp-order-day h5{margin:0 0 10px;font-size:17px;color:#0f172a}'
-               . '.hsp-order-items{display:grid;gap:6px}'
+               . '.hsp-order-items{display:grid;gap:10px}'
+               . '.hsp-order-section h6{margin:0 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:#475569}'
                . '.hsp-order-item{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 10px;background:#fff;border:1px solid #e2e8f0;border-radius:8px}'
                . '.hsp-order-item span{display:block;flex:1;line-height:1.4}'
+               . '.hsp-order-item-controls{display:flex;align-items:center;gap:8px}'
+               . '.hsp-order-side{min-width:140px;height:36px;border:1px solid #cbd5e1;border-radius:8px;padding:0 8px}'
                . '.hsp-order-item input[type=number]{width:74px;height:36px;border:1px solid #cbd5e1;border-radius:8px;padding:0 8px;font-weight:600}'
                . '.hsp-order-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}'
                . '.hsp-order-field{display:flex;flex-direction:column;gap:4px;font-weight:600;color:#1e293b}'
@@ -4206,10 +4240,38 @@ JS;
       html+="<div class='hsp-order-day"+(open?'':' hsp-order-day--closed')+"' data-date='"+date+"'><h5>"+label+(open?'':' • uzavřeno')+"</h5>";
       if(!items.length){ html+="<p><em>Bez menu</em></p></div>"; return; }
       html+="<div class='hsp-order-items'>";
-      items.forEach(function(it,idx){
-        var dis=open?'':' disabled';
-        html+="<label class='hsp-order-item'><span><input type='checkbox' class='hsp-order-item-check' data-date='"+date+"' data-title='"+esc(it.title)+"'"+dis+"> "+esc(it.title)+" <small>("+esc(it.price||'bez ceny')+")</small></span><input type='number' min='1' value='1' class='hsp-order-qty' data-date='"+date+"' data-index='"+idx+"'"+dis+"></label>";
-      });
+      var soups=items.filter(function(it){ return it && it.type==='soup'; });
+      var mains=items.filter(function(it){ return it && it.type!=='soup'; });
+      if(soups.length){
+        html+="<div class='hsp-order-section'><h6>Polévky</h6>";
+        soups.forEach(function(it,idx){
+          var dis=open?'':' disabled';
+          var meta=[];
+          if(it.weight_label){ meta.push(esc(it.weight_label)); }
+          if(it.price_label){ meta.push(esc(it.price_label)); }
+          html+="<label class='hsp-order-item'><span><input type='checkbox' class='hsp-order-item-check' data-date='"+date+"' data-title='"+esc(it.title)+"' data-type='soup'"+dis+"> Polévka: "+esc(it.title)+(meta.length?" <small>("+meta.join(' • ')+")</small>":"")+"</span><input type='number' min='1' value='1' class='hsp-order-qty' data-date='"+date+"' data-index='"+idx+"'"+dis+"></label>";
+        });
+        html+="</div>";
+      }
+      if(mains.length){
+        html+="<div class='hsp-order-section'><h6>Hlavní jídla</h6>";
+        mains.forEach(function(it,idx){
+          var dis=open?'':' disabled';
+          var meta=[];
+          if(it.weight_label){ meta.push(esc(it.weight_label)); }
+          if(it.price_label){ meta.push(esc(it.price_label)); }
+          var sideSelect='';
+          if(Array.isArray(it.side_options) && it.side_options.length){
+            sideSelect="<select class='hsp-order-side'"+dis+"><option value=''>Vyberte přílohu</option>";
+            it.side_options.forEach(function(side){
+              sideSelect+="<option value='"+String(side.id||'')+"'>"+esc(side.name||'')+"</option>";
+            });
+            sideSelect+="</select>";
+          }
+          html+="<label class='hsp-order-item'><span><input type='checkbox' class='hsp-order-item-check' data-date='"+date+"' data-title='"+esc(it.title)+"' data-type='main'"+dis+"> "+esc(it.title)+(meta.length?" <small>("+meta.join(' • ')+")</small>":"")+"</span><div class='hsp-order-item-controls'>"+sideSelect+"<input type='number' min='1' value='1' class='hsp-order-qty' data-date='"+date+"' data-index='"+idx+"'"+dis+"></div></label>";
+        });
+        html+="</div>";
+      }
       html+='</div></div>';
     });
     $("#hsp-order-days").html(html);
@@ -4222,10 +4284,12 @@ JS;
     var dayMap={};
     $('.hsp-order-item-check:checked').each(function(){
       var date=$(this).data('date');
-      var qtyInput=$(this).closest('.hsp-order-item').find('.hsp-order-qty');
+      var $row=$(this).closest('.hsp-order-item');
+      var qtyInput=$row.find('.hsp-order-qty');
       var qty=parseInt(qtyInput.val(),10)||1;
+      var selectedSide=$row.find('.hsp-order-side').val();
       if(!dayMap[date]){ dayMap[date]=[]; }
-      dayMap[date].push({title:$(this).data('title'),quantity:qty});
+      dayMap[date].push({title:$(this).data('title'),type:$(this).data('type')||'',quantity:qty,sides:selectedSide?[selectedSide]:[]});
     });
     var days=[];
     Object.keys(dayMap).forEach(function(date){ days.push({menu_date:date,items:dayMap[date]}); });
