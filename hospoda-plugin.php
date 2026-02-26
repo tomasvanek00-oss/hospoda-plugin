@@ -3930,8 +3930,9 @@ JS;
                 $allowed_sides = isset($found['sides']) && is_array($found['sides']) ? array_values(array_map('intval', $found['sides'])) : [];
                 if (!empty($selected_sides) && !empty($allowed_sides)) {
                     $selected_sides = array_values(array_intersect($selected_sides, $allowed_sides));
-                } elseif (empty($selected_sides)) {
-                    $selected_sides = $allowed_sides;
+                }
+                if (!empty($allowed_sides) && empty($selected_sides)) {
+                    return ['error' => 'U položky „' . $found['title'] . '“ je potřeba vybrat přílohu.'];
                 }
 
                 $items[] = [
@@ -3979,20 +3980,24 @@ JS;
             $delivery_fee = $subtotal >= $limit ? 0.0 : $delivery_fee;
         }
         $packaging_key = sanitize_key((string)($payload['packaging_key'] ?? ''));
-        $packaging_fee = 0.0;
+        $packaging_fee_per_day = 0.0;
         $packaging_label = '';
         foreach ($this->get_packaging_options() as $pack) {
             if ($packaging_key !== '' && $packaging_key === sanitize_key((string)($pack['key'] ?? ''))) {
                 $packaging_label = (string)($pack['label'] ?? '');
-                $packaging_fee = (float)str_replace(',', '.', (string)($pack['price'] ?? '0'));
+                $packaging_fee_per_day = (float)str_replace(',', '.', (string)($pack['price'] ?? '0'));
                 break;
             }
         }
         if (!empty($settings['packaging_enabled']) && $packaging_key === '') {
             return ['error' => 'Vyberte prosím obal.'];
         }
+        $ordered_days = count(array_unique(array_filter(array_map(static function ($item) {
+            return is_array($item) ? (string)($item['menu_date'] ?? '') : '';
+        }, $items))));
+        $packaging_fee_total = max(0, $packaging_fee_per_day) * max(0, $ordered_days);
 
-        $total = $subtotal + $delivery_fee + max(0, $packaging_fee);
+        $total = $subtotal + $delivery_fee + $packaging_fee_total;
 
         $seq = (int)get_option('hsp_order_sequence', 1000) + 1;
         update_option('hsp_order_sequence', $seq, false);
@@ -4018,10 +4023,10 @@ JS;
             'customer_email' => sanitize_email((string)($payload['customer_email'] ?? '')),
             'delivery_type' => $delivery_type,
             'delivery_address' => $address,
-            'packaging' => ['key' => $packaging_key, 'label' => $packaging_label, 'fee' => round(max(0, $packaging_fee), 2)],
+            'packaging' => ['key' => $packaging_key, 'label' => $packaging_label, 'fee_per_day' => round(max(0, $packaging_fee_per_day), 2), 'days_count' => $ordered_days, 'fee' => round($packaging_fee_total, 2)],
             'note' => sanitize_textarea_field((string)($payload['note'] ?? '')),
             'items' => $items,
-            'totals' => ['subtotal' => round($subtotal, 2), 'delivery_fee' => round($delivery_fee, 2), 'packaging_fee' => round(max(0, $packaging_fee), 2), 'total' => round($total, 2)],
+            'totals' => ['subtotal' => round($subtotal, 2), 'delivery_fee' => round($delivery_fee, 2), 'packaging_fee' => round($packaging_fee_total, 2), 'total' => round($total, 2)],
             'consents' => [
                 'gdpr_accepted' => true,
                 'gdpr_text_version' => (string)($settings['gdpr_text'] ?? ''),
@@ -4469,7 +4474,8 @@ JS;
                . '.hsp-order-pricing h4{margin:0 0 10px;font-size:18px}'
                . '.hsp-order-pricing-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed #d5dee8}'
                . '.hsp-order-pricing-row:last-of-type{border-bottom:0}'
-               . '.hsp-order-pricing-row--total{font-size:18px;font-weight:700;padding-top:10px}';
+               . '.hsp-order-pricing-row--total{font-size:18px;font-weight:700;padding-top:10px}'
+               . '@media (max-width:640px){.hsp-order-form--card{padding:14px 12px;overflow:hidden}.hsp-order-item{flex-direction:column;align-items:stretch}.hsp-order-item-controls{width:100%;display:grid;grid-template-columns:1fr 88px;gap:8px}.hsp-order-side{min-width:0;width:100%}.hsp-order-item input[type=number]{width:100%}.hsp-order-day{padding:10px}.hsp-order-grid{grid-template-columns:1fr}}';
         wp_register_style('hsp-order-inline', false, [], VERSION);
         wp_enqueue_style('hsp-order-inline');
         wp_add_inline_style('hsp-order-inline', $style);
@@ -4555,16 +4561,20 @@ JS;
   }
   function recalcPricing(){
     var subtotal=0;
+    var selectedDates={};
     $('.hsp-order-item-check:checked').each(function(){
       var $row=$(this).closest('.hsp-order-item');
       var qty=parseInt($row.find('.hsp-order-qty').val(),10)||1;
       var price=parseMoney($(this).data('price'));
+      var menuDate=String($(this).data('date')||'');
+      if(menuDate){ selectedDates[menuDate]=1; }
       subtotal+=price*Math.max(1,qty);
     });
     var deliveryType=$("input[name='hsp-order-delivery']:checked").val()||'pickup';
     var packagingFee=0;
     if(HSP_ORDER.packagingEnabled){
-      packagingFee=parseMoney($('#hsp-order-packaging option:selected').data('price'));
+      var packPerDay=parseMoney($('#hsp-order-packaging option:selected').data('price'));
+      packagingFee=packPerDay*Object.keys(selectedDates).length;
     }
     var total=subtotal+packagingFee;
     $('#hsp-order-subtotal').text(fmtPrice(subtotal));
@@ -4604,6 +4614,21 @@ JS;
       if(!dayMap[date]){ dayMap[date]=[]; }
       dayMap[date].push({title:$(this).data('title'),type:$(this).data('type')||'',quantity:qty,sides:selectedSide?[selectedSide]:[]});
     });
+    var missingSide=false;
+    $('.hsp-order-item-check:checked').each(function(){
+      var $row=$(this).closest('.hsp-order-item');
+      var $side=$row.find('.hsp-order-side');
+      if($side.length && !String($side.val()||'')){
+        missingSide=true;
+        $side.focus();
+        return false;
+      }
+    });
+    if(missingSide){
+      $('#hsp-order-msg').text('U vybraných jídel prosím zvolte přílohu.');
+      return;
+    }
+
     var days=[];
     Object.keys(dayMap).forEach(function(date){ days.push({menu_date:date,items:dayMap[date]}); });
 
