@@ -4536,13 +4536,82 @@ JS;
         return wp_nonce_url(admin_url('admin-post.php?' . http_build_query($args)), 'hsp_order_exports');
     }
 
+    private function normalize_day_for_week(string $day, string $week_start): string {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) {
+            return $week_start;
+        }
+        $day_ts = strtotime($day);
+        $week_ts = strtotime($week_start);
+        if ($day_ts === false || $week_ts === false) {
+            return $week_start;
+        }
+        $week_end = strtotime('+6 days', $week_ts);
+        if ($week_end === false || $day_ts < $week_ts || $day_ts > $week_end) {
+            return $week_start;
+        }
+        return $day;
+    }
+
+    private function build_day_meal_summary(array $orders, string $day): array {
+        $soups = [];
+        $mains = [];
+        foreach ($orders as $order) {
+            $items = get_post_meta($order->ID, 'items', true);
+            if (!is_array($items)) {
+                continue;
+            }
+            foreach ($items as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                if ((string)($item['menu_date'] ?? '') !== $day) {
+                    continue;
+                }
+                $title = trim((string)($item['title'] ?? ''));
+                if ($title === '') {
+                    continue;
+                }
+                $qty = max(1, (int)($item['quantity'] ?? 1));
+                $bucket = ((string)($item['type'] ?? 'main') === 'soup') ? 'soups' : 'mains';
+                if ($bucket === 'soups') {
+                    $soups[$title] = ($soups[$title] ?? 0) + $qty;
+                } else {
+                    $mains[$title] = ($mains[$title] ?? 0) + $qty;
+                }
+            }
+        }
+        arsort($soups);
+        arsort($mains);
+        return ['soups' => $soups, 'mains' => $mains];
+    }
+
     public function render_orders_admin_page() {
         if (!current_user_can('edit_posts')) {
             wp_die();
         }
 
         $context = $this->get_orders_filter_context($_GET);
+        $context['mode'] = 'week';
+        $week_start = isset($_GET['filter_week']) ? sanitize_text_field((string) wp_unslash($_GET['filter_week'])) : (string)($context['week_start'] ?? '');
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $week_start)) {
+            $week_start = (string)($context['week_start'] ?? wp_date('Y-m-d'));
+        }
+        $week_ts = strtotime($week_start);
+        if ($week_ts === false) {
+            $week_ts = current_time('timestamp');
+        }
+        $dow = (int) wp_date('N', $week_ts);
+        $monday_ts = strtotime('-' . ($dow - 1) . ' days', $week_ts);
+        if ($monday_ts === false) {
+            $monday_ts = $week_ts;
+        }
+        $context['week_start'] = wp_date('Y-m-d', $monday_ts);
+        $context['start'] = $context['week_start'];
+        $context['end'] = wp_date('Y-m-d', strtotime('+6 days', $monday_ts));
+        $context['label'] = 'Týden ' . wp_date('j. n. Y', $monday_ts) . ' – ' . wp_date('j. n. Y', strtotime('+6 days', $monday_ts));
+        $context['day_date'] = $this->normalize_day_for_week(isset($_GET['filter_day']) ? sanitize_text_field((string) wp_unslash($_GET['filter_day'])) : $context['week_start'], $context['week_start']);
         $orders = $this->query_orders_for_context($context, 300);
+        $day_summary = $this->build_day_meal_summary($orders, (string)$context['day_date']);
 
         $stats_total = count($orders);
         $stats_delivery = 0;
@@ -4560,19 +4629,14 @@ JS;
             $stats_revenue += (float) preg_replace('/[^0-9.,-]/', '', str_replace(',', '.', $price_stat));
         }
 
-        $day_url = admin_url('admin.php?page=hospoda-orders&filter_mode=day&filter_day=' . rawurlencode((string)$context['day_date']));
-        $week_url = admin_url('admin.php?page=hospoda-orders&filter_mode=week&filter_week=' . rawurlencode((string)$context['week_start']));
-        $detail_suffix = '&filter_mode=' . rawurlencode((string)$context['mode']) . '&filter_day=' . rawurlencode((string)$context['day_date']) . '&filter_week=' . rawurlencode((string)$context['week_start']);
+        $detail_suffix = '&filter_mode=week&filter_day=' . rawurlencode((string)$context['day_date']) . '&filter_week=' . rawurlencode((string)$context['week_start']);
 
         echo '<div class="wrap"><h1>Objednávky</h1>';
         echo '<form method="get" style="margin:10px 0 16px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">';
         echo '<input type="hidden" name="page" value="hospoda-orders">';
-        echo '<label><strong>Zobrazení</strong><br><select name="filter_mode" id="hsp-order-filter-mode">';
-        echo '<option value="day"' . selected($context['mode'], 'day', false) . '>Po dnech</option>';
-        echo '<option value="week"' . selected($context['mode'], 'week', false) . '>Po týdnech</option>';
-        echo '</select></label>';
-        echo '<label id="hsp-order-filter-day"><strong>Den</strong><br><input type="date" name="filter_day" value="' . esc_attr((string)$context['day_date']) . '"></label>';
-        echo '<label id="hsp-order-filter-week"><strong>Týden od</strong><br><input type="date" name="filter_week" value="' . esc_attr((string)$context['week_start']) . '"></label>';
+        echo '<input type="hidden" name="filter_mode" value="week">';
+        echo '<label><strong>Týden od</strong><br><input type="date" name="filter_week" value="' . esc_attr((string)$context['week_start']) . '"></label>';
+        echo '<label><strong>Rychlý přehled dne</strong><br><input type="date" name="filter_day" value="' . esc_attr((string)$context['day_date']) . '"></label>';
         echo '<button class="button button-primary">Použít filtr</button>';
         echo '</form>';
         echo '<p><strong>Aktuální filtr:</strong> ' . esc_html((string)$context['label']) . '</p>';
@@ -4589,7 +4653,33 @@ JS;
         echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_orders_pdf', $context)) . '">Export PDF</a>';
         echo '</p>';
 
-        echo '<script>(function(){var m=document.getElementById("hsp-order-filter-mode"),d=document.getElementById("hsp-order-filter-day"),w=document.getElementById("hsp-order-filter-week");if(!m||!d||!w)return;function t(){var isWeek=m.value==="week";d.style.display=isWeek?"none":"inline-block";w.style.display=isWeek?"inline-block":"none";}m.addEventListener("change",t);t();})();</script>';
+        echo '<div style="background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:12px 14px;margin:0 0 14px;max-width:900px;">';
+        echo '<h2 style="margin:0 0 8px;font-size:18px;">Přehled jídel pro den ' . esc_html(wp_date('j. n. Y', strtotime((string)$context['day_date']))) . '</h2>';
+        echo '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;">';
+        echo '<div><h3 style="margin:0 0 6px;font-size:15px;">Polévky</h3>';
+        if (empty($day_summary['soups'])) {
+            echo '<p><em>Žádné polévky v objednávkách.</em></p>';
+        } else {
+            echo '<ul style="margin:0;padding-left:18px;">';
+            foreach ($day_summary['soups'] as $title => $qty) {
+                echo '<li>' . esc_html($title) . ' — <strong>' . esc_html((string)$qty) . '×</strong></li>';
+            }
+            echo '</ul>';
+        }
+        echo '</div>';
+        echo '<div><h3 style="margin:0 0 6px;font-size:15px;">Hlavní jídla</h3>';
+        if (empty($day_summary['mains'])) {
+            echo '<p><em>Žádná hlavní jídla v objednávkách.</em></p>';
+        } else {
+            echo '<ul style="margin:0;padding-left:18px;">';
+            foreach ($day_summary['mains'] as $title => $qty) {
+                echo '<li>' . esc_html($title) . ' — <strong>' . esc_html((string)$qty) . '×</strong></li>';
+            }
+            echo '</ul>';
+        }
+        echo '</div>';
+        echo '</div>';
+        echo '</div>';
 
         echo '<table class="widefat striped"><thead><tr><th>Číslo</th><th>Datum menu</th><th>Jméno</th><th>Telefon</th><th>Typ</th><th>Cena</th><th>Stav</th><th>Vytvořeno</th></tr></thead><tbody>';
         if (empty($orders)) {
