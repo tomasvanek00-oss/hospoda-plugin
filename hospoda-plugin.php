@@ -1751,6 +1751,17 @@ JS;
         return file_exists($path) ? $path : '';
     }
 
+    private function get_delivery_type_label(string $type): string {
+        $type = sanitize_key($type);
+        if ($type === 'delivery') {
+            return 'Rozvoz';
+        }
+        if ($type === 'pickup') {
+            return 'Vyzvednutí';
+        }
+        return $type !== '' ? ucfirst($type) : '—';
+    }
+
     private function ensure_meal_exists($title){
         $title = trim((string)$title);
         if ($title==='') return 0;
@@ -2090,6 +2101,10 @@ JS;
             $id=intval($row['id']??0);
             $title_raw = sanitize_text_field($row['title'] ?? '');
             $price = sanitize_text_field($row['price'] ?? '');
+            if (!$use_groups && $title_raw !== '' && $price === '') {
+                wp_redirect(admin_url('admin.php?page=hospoda-week&week_error=' . rawurlencode('V režimu individuálních cen vyplňte cenu u každého hlavního jídla.')));
+                exit;
+            }
             $weight = sanitize_text_field($row['weight'] ?? '');
             if ($weight === '') {
                 $weight = $this->find_existing_main_weight($existing_mains, $id, $title_raw);
@@ -2574,6 +2589,8 @@ JS;
           <h1>Týdenní menu</h1>
           <?php if (isset($_GET['saved'])) : ?>
             <div class="notice notice-success is-dismissible"><p>Týdenní menu bylo uloženo.</p></div>
+          <?php elseif (isset($_GET['week_error'])) : ?>
+            <div class="notice notice-error is-dismissible"><p><?php echo esc_html(rawurldecode((string) wp_unslash($_GET['week_error']))); ?></p></div>
           <?php endif; ?>
           <p>
             <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=hospoda-week-branding')); ?>">Nastavení</a>
@@ -3072,6 +3089,8 @@ JS;
         $use_sides = $this->should_manage_sides();
         $use_groups = $this->should_use_menu_groups();
 
+        $missing_price_days = [];
+
         for ($i = 0; $i < 5; $i++) {
             $date = date('Y-m-d', strtotime("+{$i} day", strtotime($monday)));
 
@@ -3162,6 +3181,10 @@ JS;
                 if ($weight === '') {
                     $weight = $this->find_existing_main_weight($existing_mains, $id, $title_raw);
                 }
+                if (!$use_groups && $title_raw !== '' && $price === '') {
+                    $missing_price_days[] = wp_date('j. n. Y', strtotime($date));
+                    break;
+                }
                 $allergens = $this->sanitize_allergen_list($row['allergens'] ?? []);
                 $sides_list = array_values(array_unique(array_map('intval', $row['sides'] ?? [])));
                 $group_key = '';
@@ -3186,6 +3209,10 @@ JS;
                     'menu_group' => $group_key,
                 ];
             }
+
+            if (!empty($missing_price_days)) {
+                break;
+            }
             update_post_meta($post_id, 'mains', $mains);
             if ($use_groups) {
                 if (!empty($day_groups) && $day_groups !== $default_day_groups) {
@@ -3196,6 +3223,12 @@ JS;
             } else {
                 delete_post_meta($post_id, 'menu_groups');
             }
+        }
+
+        if (!empty($missing_price_days)) {
+            $day_list = implode(', ', array_values(array_unique($missing_price_days)));
+            wp_redirect(admin_url('admin.php?page=hospoda-week&week_error=' . rawurlencode('V režimu individuálních cen vyplňte cenu u každého hlavního jídla. Chybí: ' . $day_list)));
+            exit;
         }
 
         wp_redirect(admin_url('admin.php?page=hospoda-week&saved=1'));
@@ -4511,6 +4544,22 @@ JS;
         $context = $this->get_orders_filter_context($_GET);
         $orders = $this->query_orders_for_context($context, 300);
 
+        $stats_total = count($orders);
+        $stats_delivery = 0;
+        $stats_pickup = 0;
+        $stats_revenue = 0.0;
+        foreach ($orders as $order_stat) {
+            $delivery_type_stat = (string) get_post_meta($order_stat->ID, 'delivery_type', true);
+            if ($delivery_type_stat === 'delivery') {
+                $stats_delivery++;
+            } elseif ($delivery_type_stat === 'pickup') {
+                $stats_pickup++;
+            }
+            $totals_stat = get_post_meta($order_stat->ID, 'totals', true);
+            $price_stat = is_array($totals_stat) ? (string) ($totals_stat['total'] ?? '') : '';
+            $stats_revenue += (float) preg_replace('/[^0-9.,-]/', '', str_replace(',', '.', $price_stat));
+        }
+
         $day_url = admin_url('admin.php?page=hospoda-orders&filter_mode=day&filter_day=' . rawurlencode((string)$context['day_date']));
         $week_url = admin_url('admin.php?page=hospoda-orders&filter_mode=week&filter_week=' . rawurlencode((string)$context['week_start']));
         $detail_suffix = '&filter_mode=' . rawurlencode((string)$context['mode']) . '&filter_day=' . rawurlencode((string)$context['day_date']) . '&filter_week=' . rawurlencode((string)$context['week_start']);
@@ -4527,6 +4576,12 @@ JS;
         echo '<button class="button button-primary">Použít filtr</button>';
         echo '</form>';
         echo '<p><strong>Aktuální filtr:</strong> ' . esc_html((string)$context['label']) . '</p>';
+        echo '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;max-width:760px;margin:10px 0 16px;">';
+        echo '<div style="background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:10px 12px;"><strong>Objednávek</strong><br><span style="font-size:20px;">' . esc_html((string) $stats_total) . '</span></div>';
+        echo '<div style="background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:10px 12px;"><strong>Rozvoz</strong><br><span style="font-size:20px;">' . esc_html((string) $stats_delivery) . '</span></div>';
+        echo '<div style="background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:10px 12px;"><strong>Vyzvednutí</strong><br><span style="font-size:20px;">' . esc_html((string) $stats_pickup) . '</span></div>';
+        echo '<div style="background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:10px 12px;"><strong>Celkem</strong><br><span style="font-size:20px;">' . esc_html($this->format_price_for_display((string) $stats_revenue)) . '</span></div>';
+        echo '</div>';
 
         echo '<p>';
         echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_delivery_csv', $context)) . '">Export rozvoz CSV</a> ';
@@ -4550,7 +4605,7 @@ JS;
             $status = $order->post_status;
             echo '<tr>';
             echo '<td><a href="' . esc_url(admin_url('admin.php?page=hospoda-orders&order_id=' . $order->ID . $detail_suffix)) . '">' . esc_html($order->post_title) . '</a></td>';
-            echo '<td>' . esc_html($menu_date) . '</td><td>' . esc_html($name) . '</td><td>' . esc_html($phone) . '</td><td>' . esc_html($dtype) . '</td><td>' . esc_html($this->format_price_for_display($total_price)) . '</td><td>' . esc_html($this->get_order_statuses()[$status] ?? $status) . '</td><td>' . esc_html($order->post_date) . '</td>';
+            echo '<td>' . esc_html($menu_date) . '</td><td>' . esc_html($name) . '</td><td>' . esc_html($phone) . '</td><td>' . esc_html($this->get_delivery_type_label($dtype)) . '</td><td>' . esc_html($this->format_price_for_display($total_price)) . '</td><td>' . esc_html($this->get_order_statuses()[$status] ?? $status) . '</td><td>' . esc_html($order->post_date) . '</td>';
             echo '</tr>';
         }
         echo '</tbody></table>';
