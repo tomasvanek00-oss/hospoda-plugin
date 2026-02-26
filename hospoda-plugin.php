@@ -429,7 +429,14 @@ CSS;
               if ($input.data('ui-autocomplete')) return;
               $input.autocomplete({
                 source: function(req,res){
-                  $.get(ajaxurl, {_ajax_nonce:HOSPOS.nonce, action:'hospoda_meal_search', term:req.term}, function(data){
+                  var context = 'all';
+                  var $row = $input.closest('.row');
+                  if ($row.hasClass('soup')) {
+                    context = 'soup';
+                  } else if ($row.hasClass('main')) {
+                    context = 'main';
+                  }
+                  $.get(ajaxurl, {_ajax_nonce:HOSPOS.nonce, action:'hospoda_meal_search', term:req.term, context:context}, function(data){
                     if (Array.isArray(data)) { res(data); }
                     else { res([]); }
                   });
@@ -1838,7 +1845,71 @@ JS;
     public function ajax_meal_search() {
         check_ajax_referer('hospoda_meal_search','_ajax_nonce');
         $term = isset($_GET['term']) ? sanitize_text_field($_GET['term']) : '';
+        $context = isset($_GET['context']) ? sanitize_key((string) $_GET['context']) : 'all';
+        if (!in_array($context, ['all', 'soup', 'main'], true)) {
+            $context = 'all';
+        }
+
         $out=[]; $seen=[];
+        $soup_seen = [];
+        $main_seen = [];
+
+        $days = get_posts([
+            'post_type'      => CPT_DAY,
+            'posts_per_page' => 260,
+            'meta_key'       => 'menu_date',
+            'orderby'        => 'meta_value',
+            'order'          => 'DESC',
+            'fields'         => 'ids',
+        ]);
+
+        foreach ($days as $day_id) {
+            $day_id = (int) $day_id;
+            if ($day_id <= 0) {
+                continue;
+            }
+
+            $soups = $this->normalize_soups_meta(get_post_meta($day_id, 'soups', true));
+            if (empty($soups)) {
+                $soups = $this->normalize_soups_meta(get_post_meta($day_id, 'soup', true));
+            }
+            foreach ($soups as $soup_row) {
+                $soup_title = isset($soup_row['title']) ? trim((string) $soup_row['title']) : '';
+                if ($soup_title !== '') {
+                    $soup_seen[mb_strtolower($soup_title)] = true;
+                }
+            }
+
+            $mains = get_post_meta($day_id, 'mains', true);
+            if (is_array($mains)) {
+                foreach ($mains as $main_row) {
+                    if (!is_array($main_row)) {
+                        continue;
+                    }
+                    $main_title = isset($main_row['title']) ? trim((string) $main_row['title']) : '';
+                    if ($main_title !== '') {
+                        $main_seen[mb_strtolower($main_title)] = true;
+                    }
+                }
+            }
+        }
+
+        $matches_context = static function (string $title_key) use ($context, $soup_seen, $main_seen): bool {
+            if ($context === 'all') {
+                return true;
+            }
+            if ($context === 'soup') {
+                return isset($soup_seen[$title_key]);
+            }
+            if ($context === 'main') {
+                if (isset($main_seen[$title_key])) {
+                    return true;
+                }
+                return !isset($soup_seen[$title_key]);
+            }
+            return true;
+        };
+
         // 1) Primárně knihovna jídel (CPT_MEAL)
         $q = new \WP_Query([
             'post_type'=>CPT_MEAL,
@@ -1850,7 +1921,7 @@ JS;
         while($q->have_posts()){ $q->the_post();
             $title = get_the_title();
             $key = mb_strtolower($title);
-            if (isset($seen[$key])) continue;
+            if (isset($seen[$key]) || !$matches_context($key)) continue;
             $seen[$key] = true;
             $extra = $this->last_usage_data(get_the_ID(), $title);
             if (!$this->should_manage_sides()) {
@@ -1867,25 +1938,22 @@ JS;
             ];
         }
         wp_reset_postdata();
-        // 2) Doplň titulky z posledních 90 dní v denním menu (pokud je málo návrhů)
+
+        // 2) Doplň titulky z posledních dní v denním menu (pokud je málo návrhů)
         if (count($out) < 20){
-            $since = date('Y-m-d', strtotime('-90 days'));
-            $days = get_posts([
-                'post_type'=>CPT_DAY,
-                'posts_per_page'=>200,
-                'meta_query'=>[
-                    ['key'=>'menu_date','value'=>$since,'compare'=>'>=']
-                ],
-                'orderby'=>'meta_value','meta_key'=>'menu_date','order'=>'DESC'
-            ]);
-            foreach($days as $p){
-                $mains = get_post_meta($p->ID,'mains',true);
-                if (is_array($mains)){
+            foreach($days as $day_id){
+                $day_id = (int) $day_id;
+                if ($day_id <= 0) {
+                    continue;
+                }
+
+                $mains = get_post_meta($day_id,'mains',true);
+                if (is_array($mains) && $context !== 'soup'){
                     foreach($mains as $row){
                         $t = isset($row['title']) ? (string)$row['title'] : '';
                         if ($t!=='' && stripos($t,$term)!==false){
                             $key = mb_strtolower($t);
-                            if (!isset($seen[$key])){
+                            if (!isset($seen[$key]) && $matches_context($key)){
                                 $extra = $this->last_usage_data(0,$t);
                                 if (!$this->should_manage_sides()) {
                                     $extra['sides'] = [];
@@ -1900,82 +1968,49 @@ JS;
                                     'allergens'=>$extra['allergens'],
                                 ];
                                 $seen[$key]=true;
-                                if (count($out) >= 20) break 2;
+                                if (count($out) >= 20) {
+                                    break 2;
+                                }
                             }
                         }
                     }
                 }
-                $soup = get_post_meta($p->ID,'soup',true);
-                if (!empty($soup['title'])){
-                    $t = (string)$soup['title'];
-                    if ($t!=='' && stripos($t,$term)!==false){
-                        $key = mb_strtolower($t);
-                        if (!isset($seen[$key])){
-                            $extra = $this->last_usage_data(0,$t);
-                            if (!$this->should_manage_sides()) {
-                                $extra['sides'] = [];
+
+                if ($context !== 'main') {
+                    $soups = $this->normalize_soups_meta(get_post_meta($day_id,'soups',true));
+                    if (empty($soups)) {
+                        $soups = $this->normalize_soups_meta(get_post_meta($day_id,'soup',true));
+                    }
+                    foreach ($soups as $soup_row) {
+                        $t = isset($soup_row['title']) ? (string) $soup_row['title'] : '';
+                        if ($t!=='' && stripos($t,$term)!==false){
+                            $key = mb_strtolower($t);
+                            if (!isset($seen[$key]) && $matches_context($key)){
+                                $extra = $this->last_usage_data(0,$t);
+                                if (!$this->should_manage_sides()) {
+                                    $extra['sides'] = [];
+                                }
+                                $out[] = [
+                                    'label'=>$t,
+                                    'value'=>$t,
+                                    'id'=>0,
+                                    'price'=>$extra['price'],
+                                    'weight'=>$extra['weight'],
+                                    'sides'=>$extra['sides'],
+                                    'allergens'=>$extra['allergens'],
+                                ];
+                                $seen[$key]=true;
+                                if (count($out) >= 20) {
+                                    break 2;
+                                }
                             }
-                            $out[] = [
-                                'label'=>$t,
-                                'value'=>$t,
-                                'id'=>0,
-                                'price'=>$extra['price'],
-                                'weight'=>$extra['weight'],
-                                'sides'=>$extra['sides'],
-                                'allergens'=>$extra['allergens'],
-                            ];
-                            $seen[$key]=true;
-                            if (count($out) >= 20) break;
                         }
                     }
                 }
             }
         }
-        wp_send_json($out);
-    }
 
-    // ---------- Denní admin stránka ----------
-    public function render_admin_page() {
-        // Although daily editor is no longer used directly from menu, keep it accessible if needed.
-        $today = date('Y-m-d');
-        $existing = get_posts(['post_type'=>CPT_DAY,'posts_per_page'=>1,'meta_key'=>'menu_date','meta_value'=>$today]);
-        $data = ['soup'=>['id'=>'','title'=>'','price'=>''],'mains'=>[]];
-        if ($existing) {
-            $id = $existing[0]->ID;
-            $data['soup'] = get_post_meta($id,'soup',true);
-            $data['mains'] = get_post_meta($id,'mains',true);
-        }
-        $sides_data = $this->get_sides_data();
-        $sides = $sides_data['terms'];
-        $price_placeholder = $this->get_price_placeholder_label();
-        ?>
-        <div class="wrap">
-          <h1>Polední menu – dne <?php echo esc_html($today); ?></h1>
-          <form class="hs-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-            <?php wp_nonce_field('hospoda_save_day'); ?>
-            <input type="hidden" name="action" value="hospoda_save_day">
-            <input type="hidden" name="menu_date" value="<?php echo esc_attr($today); ?>">
-            <div class="row soup">
-             <input class="meal-autocomplete" name="soup[title]" type="text" placeholder="Polévka – začněte psát…" value="<?php echo esc_attr($data['soup']['title'] ?? ''); ?>">
-              <input class="meal-id" type="hidden" name="soup[id]" value="<?php echo esc_attr($data['soup']['id'] ?? ''); ?>">
-              <input class="meal-allergens" type="hidden" name="soup[allergens]" value="<?php echo esc_attr($this->format_allergens_field($data['soup']['allergens'] ?? [])); ?>">
-              <input class="price" type="text" name="soup[price]" placeholder="<?php echo esc_attr($price_placeholder); ?>" value="<?php echo esc_attr($data['soup']['price'] ?? ''); ?>">
-              <?php if ($this->should_collect_weights()) : ?><input class="weight" type="text" name="soup[weight]" placeholder="Hmotnost (<?php echo esc_attr($this->get_weight_unit('soup')); ?>)" value="<?php echo esc_attr($data['soup']['weight'] ?? ''); ?>"><?php endif; ?>
-            </div>
-            <div id="mains" class="hs-mains">
-              <?php
-              if (!empty($data['mains'])) {
-                  foreach ($data['mains'] as $i=>$row) $this->render_main_row($sides,$row,$i,$price_placeholder);
-              } else {
-                  $this->render_main_row($sides,[] ,0,$price_placeholder);
-              }
-              ?>
-            </div>
-            <p><button type="button" class="button" id="add-row">Přidat jídlo</button></p>
-            <p><button class="button button-primary">Uložit menu</button></p>
-          </form>
-        </div>
-        <?php
+        wp_send_json($out);
     }
 
     private function render_main_row($sides,$row,$i,$price_placeholder) {
