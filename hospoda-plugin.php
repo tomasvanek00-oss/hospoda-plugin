@@ -4396,6 +4396,7 @@ JS;
         }
         echo '<h3>Objednávka jídel</h3>';
         echo '<p class="hsp-order-help">Vyberte jídla na celý týden a odešlete jednu souhrnnou objednávku.</p>';
+        echo '<div id="hsp-order-msg" class="hsp-order-msg" aria-live="polite"></div>';
         echo '<label class="hsp-order-label">Týden od pondělí <select id="hsp-order-week" class="hsp-order-select">';
         foreach ($weeks as $monday) {
             echo '<option value="' . esc_attr($monday) . '">' . esc_html(wp_date('j. n. Y', strtotime($monday))) . '</option>';
@@ -4442,7 +4443,6 @@ JS;
         echo '<label class="hsp-order-field"><span>Poznámka</span><textarea id="hsp-order-note" placeholder="Poznámka k objednávce"></textarea></label>';
         echo '<p class="hsp-order-gdpr"><label><input type="checkbox" id="hsp-order-gdpr"> ' . esc_html((string)($settings['gdpr_text'] ?? 'Souhlasím se zpracováním osobních údajů.')) . '</label></p>';
         echo '<button type="button" class="button button-primary" id="hsp-order-submit">Odeslat objednávku na týden</button>';
-        echo '<p id="hsp-order-msg"></p>';
         echo '</div>';
         echo '</div>';
 
@@ -4469,6 +4469,9 @@ JS;
                . '.hsp-order-gdpr{margin:12px 0}'
                . '#hsp-order-submit{min-height:40px;padding:0 16px}'
                . '.hsp-order-help{color:#475569;margin:.25rem 0 .75rem}'
+               . '.hsp-order-msg{display:none;margin:0 0 12px;padding:10px 12px;border-radius:8px;font-weight:600}'
+               . '.hsp-order-msg.is-error{display:block;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c}'
+               . '.hsp-order-msg.is-success{display:block;background:#ecfdf5;border:1px solid #a7f3d0;color:#166534}'
                . '.hsp-order-day--closed{opacity:.55}'
                . '.hsp-order-pricing{margin:8px 0 16px;padding:14px;border:1px solid #d8e3f2;border-radius:12px;background:#f8fafc}'
                . '.hsp-order-pricing h4{margin:0 0 10px;font-size:18px}'
@@ -4509,6 +4512,16 @@ JS;
   }
   function fmtPrice(n){
     return (Math.round((Number(n)||0)*100)/100).toFixed(2).replace('.', ',')+' Kč';
+  }
+  function setMsg(message,type){
+    var $msg=$('#hsp-order-msg');
+    if(!$msg.length){return;}
+    $msg.removeClass('is-error is-success');
+    if(!message){
+      $msg.text('');
+      return;
+    }
+    $msg.addClass(type==='success'?'is-success':'is-error').text(String(message));
   }
   function render(){
     var weekStart=$("#hsp-order-week").val();
@@ -4603,6 +4616,7 @@ JS;
   recalcPricing();
 
   $(document).on('click','#hsp-order-submit',function(){
+    setMsg('');
     var weekStart=$("#hsp-order-week").val();
     var dayMap={};
     $('.hsp-order-item-check:checked').each(function(){
@@ -4620,12 +4634,11 @@ JS;
       var $side=$row.find('.hsp-order-side');
       if($side.length && !String($side.val()||'')){
         missingSide=true;
-        $side.focus();
         return false;
       }
     });
     if(missingSide){
-      $('#hsp-order-msg').text('U vybraných jídel prosím zvolte přílohu.');
+      setMsg('U vybraných jídel prosím zvolte přílohu.','error');
       return;
     }
 
@@ -4656,13 +4669,13 @@ JS;
           setTimeout(function(){ window.location.href=HSP_ORDER.homeUrl||'/'; }, 5000);
           return;
         }else{
-          $('#hsp-order-msg').text((res&&res.data&&res.data.message)?res.data.message:'Objednávku se nepodařilo odeslat.');
+          setMsg((res&&res.data&&res.data.message)?res.data.message:'Objednávku se nepodařilo odeslat.','error');
         }
       })
       .fail(function(xhr){
         var m='Objednávku se nepodařilo odeslat.';
         if(xhr&&xhr.responseJSON&&xhr.responseJSON.data&&xhr.responseJSON.data.message){m=xhr.responseJSON.data.message;}
-        $('#hsp-order-msg').text(m);
+        setMsg(m,'error');
       });
   });
 })();
