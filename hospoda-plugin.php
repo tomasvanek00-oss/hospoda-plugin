@@ -4133,28 +4133,40 @@ JS;
         echo '</select></label>';
 
         echo '<div id="hsp-order-days" class="hsp-order-days"></div>';
+        echo '<div class="hsp-order-contact">';
         echo '<h4>Kontaktní údaje</h4>';
         echo '<div class="hsp-order-grid">';
-        echo '<input type="text" id="hsp-order-name" placeholder="Jméno" value="' . esc_attr($default_name) . '" />';
-        echo '<input type="tel" id="hsp-order-phone" placeholder="Telefon" value="' . esc_attr($default_phone) . '" />';
-        echo '<input type="email" id="hsp-order-email" placeholder="Email (volitelně)" value="' . esc_attr($default_email) . '" />';
+        echo '<label class="hsp-order-field"><span>Jméno</span><input type="text" id="hsp-order-name" placeholder="Jméno" value="' . esc_attr($default_name) . '" /></label>';
+        echo '<label class="hsp-order-field"><span>Telefon</span><input type="tel" id="hsp-order-phone" placeholder="Telefon" value="' . esc_attr($default_phone) . '" /></label>';
+        echo '<label class="hsp-order-field"><span>Email (volitelně)</span><input type="email" id="hsp-order-email" placeholder="vas@email.cz" value="' . esc_attr($default_email) . '" /></label>';
         echo '</div>';
-        echo '<p><label><input type="radio" name="hsp-order-delivery" value="pickup" checked> Osobní odběr</label> <label><input type="radio" name="hsp-order-delivery" value="delivery"> Rozvoz</label></p>';
-        echo '<input type="text" id="hsp-order-address" placeholder="Adresa rozvozu" value="' . esc_attr($default_address) . '" />';
-        echo '<textarea id="hsp-order-note" placeholder="Poznámka"></textarea>';
-        echo '<p><label><input type="checkbox" id="hsp-order-gdpr"> ' . esc_html((string)($settings['gdpr_text'] ?? 'Souhlasím se zpracováním osobních údajů.')) . '</label></p>';
+        echo '<div class="hsp-order-delivery"><strong>Doručení</strong><p><label><input type="radio" name="hsp-order-delivery" value="pickup" checked> Osobní odběr</label> <label><input type="radio" name="hsp-order-delivery" value="delivery"> Rozvoz</label></p></div>';
+        echo '<label class="hsp-order-field"><span>Adresa rozvozu</span><input type="text" id="hsp-order-address" placeholder="Ulice, město" value="' . esc_attr($default_address) . '" /></label>';
+        echo '<label class="hsp-order-field"><span>Poznámka</span><textarea id="hsp-order-note" placeholder="Poznámka k objednávce"></textarea></label>';
+        echo '<p class="hsp-order-gdpr"><label><input type="checkbox" id="hsp-order-gdpr"> ' . esc_html((string)($settings['gdpr_text'] ?? 'Souhlasím se zpracováním osobních údajů.')) . '</label></p>';
         echo '<button type="button" class="button button-primary" id="hsp-order-submit">Odeslat objednávku na týden</button>';
         echo '<p id="hsp-order-msg"></p>';
         echo '</div>';
+        echo '</div>';
 
         $style = '.hsp-order-form--card{max-width:980px;background:#fff;border:1px solid #d9e2ec;border-radius:12px;padding:18px 20px;box-shadow:0 2px 6px rgba(0,0,0,.05)}'
-               . '.hsp-order-days{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:14px 0}'
-               . '.hsp-order-day{border:1px solid #d8e3f2;border-radius:10px;padding:10px;background:#f8fbff}'
-               . '.hsp-order-day h5{margin:0 0 8px;font-size:14px;color:#0f172a}'
+               . '.hsp-order-days{display:grid;grid-template-columns:1fr;gap:12px;margin:14px 0}'
+               . '.hsp-order-day{border:1px solid #d8e3f2;border-radius:12px;padding:12px 14px;background:#f8fbff}'
+               . '.hsp-order-day h5{margin:0 0 10px;font-size:17px;color:#0f172a}'
                . '.hsp-order-items{display:grid;gap:6px}'
-               . '.hsp-order-item{display:flex;gap:8px;align-items:center;justify-content:space-between}'
-               . '.hsp-order-item input[type=number]{width:62px}'
+               . '.hsp-order-item{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 10px;background:#fff;border:1px solid #e2e8f0;border-radius:8px}'
+               . '.hsp-order-item span{display:block;flex:1;line-height:1.4}'
+               . '.hsp-order-item input[type=number]{width:74px;height:36px;border:1px solid #cbd5e1;border-radius:8px;padding:0 8px;font-weight:600}'
                . '.hsp-order-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}'
+               . '.hsp-order-field{display:flex;flex-direction:column;gap:4px;font-weight:600;color:#1e293b}'
+               . '.hsp-order-field input,.hsp-order-field textarea{width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:9px 10px;font-weight:400}'
+               . '.hsp-order-field textarea{min-height:90px;resize:vertical}'
+               . '.hsp-order-contact{margin-top:16px;padding:14px;border:1px solid #d8e3f2;border-radius:12px;background:#f8fafc}'
+               . '.hsp-order-contact h4{margin:0 0 12px;font-size:18px}'
+               . '.hsp-order-delivery{margin:12px 0 10px}'
+               . '.hsp-order-delivery p{margin:6px 0 0;display:flex;gap:16px;flex-wrap:wrap}'
+               . '.hsp-order-gdpr{margin:12px 0}'
+               . '#hsp-order-submit{min-height:40px;padding:0 16px}'
                . '.hsp-order-help{color:#475569;margin:.25rem 0 .75rem}'
                . '.hsp-order-day--closed{opacity:.55}';
         wp_register_style('hsp-order-inline', false, [], VERSION);
@@ -4174,6 +4186,14 @@ JS;
   var $=window.jQuery;
   var weeks=HSP_ORDER.weeks||{};
   function esc(v){return String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function formatDate(date){
+    var parts=String(date||'').split('-');
+    if(parts.length!==3){return date;}
+    var d=new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2]));
+    if(Number.isNaN(d.getTime())){return date;}
+    var days=['Neděle','Pondělí','Úterý','Středa','Čtvrtek','Pátek','Sobota'];
+    return days[d.getDay()]+' • '+d.getDate()+'. '+(d.getMonth()+1)+'. '+d.getFullYear();
+  }
   function render(){
     var weekStart=$("#hsp-order-week").val();
     var days=weeks[weekStart]||{};
@@ -4182,7 +4202,8 @@ JS;
       var day=days[date]||{};
       var open=!!day.open;
       var items=day.items||[];
-      html+="<div class='hsp-order-day"+(open?'':' hsp-order-day--closed')+"' data-date='"+date+"'><h5>"+date+(open?'':' • uzavřeno')+"</h5>";
+      var label=formatDate(date);
+      html+="<div class='hsp-order-day"+(open?'':' hsp-order-day--closed')+"' data-date='"+date+"'><h5>"+label+(open?'':' • uzavřeno')+"</h5>";
       if(!items.length){ html+="<p><em>Bez menu</em></p></div>"; return; }
       html+="<div class='hsp-order-items'>";
       items.forEach(function(it,idx){
