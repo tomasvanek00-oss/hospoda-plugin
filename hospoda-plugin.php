@@ -1765,6 +1765,31 @@ JS;
         return $type !== '' ? ucfirst($type) : '—';
     }
 
+    private function get_packaging_options(): array {
+        $settings = $this->get_order_settings();
+        $raw = (string)($settings['packaging_options'] ?? '');
+        $rows = preg_split('/\r\n|\r|\n/', $raw) ?: [];
+        $options = [];
+        foreach ($rows as $row) {
+            $row = trim((string)$row);
+            if ($row === '') {
+                continue;
+            }
+            $parts = array_map('trim', explode('|', $row, 2));
+            $label = $parts[0] ?? '';
+            if ($label === '') {
+                continue;
+            }
+            $price = isset($parts[1]) ? sanitize_text_field($parts[1]) : '0';
+            $key = sanitize_title($label);
+            if ($key === '') {
+                $key = 'obal-' . (count($options) + 1);
+            }
+            $options[$key] = ['key' => $key, 'label' => $label, 'price' => $price];
+        }
+        return array_values($options);
+    }
+
     private function ensure_meal_exists($title){
         $title = trim((string)$title);
         if ($title==='') return 0;
@@ -3065,6 +3090,12 @@ JS;
               <p><label>GDPR text<textarea name="order_settings[gdpr_text]" rows="2" class="large-text"><?php echo esc_textarea($order_settings['gdpr_text'] ?? ''); ?></textarea></label></p>
               <p><label>GDPR odkaz <input type="url" class="large-text" name="order_settings[gdpr_link]" value="<?php echo esc_attr($order_settings['gdpr_link'] ?? ''); ?>"></label></p>
               <p><label>Uchování objednávek (dní) <input type="number" name="order_settings[retention_days]" value="<?php echo esc_attr((string)($order_settings['retention_days'] ?? 90)); ?>" min="7"></label></p>
+              <hr>
+              <p><input type="hidden" name="order_settings[packaging_enabled]" value="0"><label><input type="checkbox" name="order_settings[packaging_enabled]" value="1" <?php checked(!empty($order_settings['packaging_enabled'])); ?>> Povolit výběr obalu v objednávce</label></p>
+              <p><label>Varianty obalu (1 řádek = Název|Cena)<br>
+                <textarea name="order_settings[packaging_options]" rows="4" class="large-text"><?php echo esc_textarea((string)($order_settings['packaging_options'] ?? "Jednorázový obal|10\nJídlonosič|0")); ?></textarea>
+              </label></p>
+              <p class="description">Příklad: <code>Jednorázový obal|10</code>. Přidejte další řádky pro další obaly.</p>
             </div>
           </fieldset>
           </div>
@@ -3947,7 +3978,21 @@ JS;
             $limit = (float)str_replace(',', '.', (string)($settings['delivery_fee_value'] ?? '0'));
             $delivery_fee = $subtotal >= $limit ? 0.0 : $delivery_fee;
         }
-        $total = $subtotal + $delivery_fee;
+        $packaging_key = sanitize_key((string)($payload['packaging_key'] ?? ''));
+        $packaging_fee = 0.0;
+        $packaging_label = '';
+        foreach ($this->get_packaging_options() as $pack) {
+            if ($packaging_key !== '' && $packaging_key === sanitize_key((string)($pack['key'] ?? ''))) {
+                $packaging_label = (string)($pack['label'] ?? '');
+                $packaging_fee = (float)str_replace(',', '.', (string)($pack['price'] ?? '0'));
+                break;
+            }
+        }
+        if (!empty($settings['packaging_enabled']) && $packaging_key === '') {
+            return ['error' => 'Vyberte prosím obal.'];
+        }
+
+        $total = $subtotal + $delivery_fee + max(0, $packaging_fee);
 
         $seq = (int)get_option('hsp_order_sequence', 1000) + 1;
         update_option('hsp_order_sequence', $seq, false);
@@ -3973,9 +4018,10 @@ JS;
             'customer_email' => sanitize_email((string)($payload['customer_email'] ?? '')),
             'delivery_type' => $delivery_type,
             'delivery_address' => $address,
+            'packaging' => ['key' => $packaging_key, 'label' => $packaging_label, 'fee' => round(max(0, $packaging_fee), 2)],
             'note' => sanitize_textarea_field((string)($payload['note'] ?? '')),
             'items' => $items,
-            'totals' => ['subtotal' => round($subtotal, 2), 'delivery_fee' => round($delivery_fee, 2), 'total' => round($total, 2)],
+            'totals' => ['subtotal' => round($subtotal, 2), 'delivery_fee' => round($delivery_fee, 2), 'packaging_fee' => round(max(0, $packaging_fee), 2), 'total' => round($total, 2)],
             'consents' => [
                 'gdpr_accepted' => true,
                 'gdpr_text_version' => (string)($settings['gdpr_text'] ?? ''),
@@ -4001,6 +4047,9 @@ JS;
             }
             if ($address !== '') {
                 update_user_meta($uid, 'hsp_delivery_address', $address);
+            }
+            if ($packaging_key !== '') {
+                update_user_meta($uid, 'hsp_preferred_packaging', $packaging_key);
             }
         }
 
@@ -4106,11 +4155,14 @@ JS;
         wp_add_inline_style('hsp-order-auth-inline', $auth_style);
 
         $errors = [];
+        $order_settings = $this->get_order_settings();
+        $packaging_options = !empty($order_settings['packaging_enabled']) ? $this->get_packaging_options() : [];
         $values = [
             'email' => '',
             'name' => '',
             'phone' => '',
             'address' => '',
+            'packaging' => '',
         ];
 
         if (isset($_POST['hsp_order_register_submit'])) {
@@ -4121,6 +4173,15 @@ JS;
             $values['name'] = sanitize_text_field((string) wp_unslash($_POST['reg_name'] ?? ''));
             $values['phone'] = sanitize_text_field((string) wp_unslash($_POST['reg_phone'] ?? ''));
             $values['address'] = sanitize_text_field((string) wp_unslash($_POST['reg_address'] ?? ''));
+            $values['packaging'] = sanitize_key((string) wp_unslash($_POST['reg_packaging'] ?? ''));
+            if ($values['packaging'] !== '') {
+                $valid_packaging_keys = array_map(static function ($item) {
+                    return sanitize_key((string)($item['key'] ?? ''));
+                }, $packaging_options);
+                if (!in_array($values['packaging'], $valid_packaging_keys, true)) {
+                    $values['packaging'] = '';
+                }
+            }
             $redirect_post = esc_url_raw((string) wp_unslash($_POST['reg_redirect_to'] ?? ''));
             if ($redirect_post !== '') {
                 $redirect = $redirect_post;
@@ -4137,9 +4198,6 @@ JS;
             }
             if ($values['phone'] === '') {
                 $errors[] = 'Telefon je povinný.';
-            }
-            if ($values['address'] === '') {
-                $errors[] = 'Adresa je povinná.';
             }
             if (email_exists($values['email'])) {
                 $errors[] = 'Tento e-mail je již registrován.';
@@ -4168,7 +4226,12 @@ JS;
                     ]);
                     update_user_meta($user_id, 'hsp_customer_name', $values['name']);
                     update_user_meta($user_id, 'hsp_customer_phone', $values['phone']);
-                    update_user_meta($user_id, 'hsp_delivery_address', $values['address']);
+                    if ($values['address'] !== '') {
+                        update_user_meta($user_id, 'hsp_delivery_address', $values['address']);
+                    }
+                    if ($values['packaging'] !== '') {
+                        update_user_meta($user_id, 'hsp_preferred_packaging', $values['packaging']);
+                    }
 
                     wp_set_current_user($user_id);
                     wp_set_auth_cookie($user_id, true);
@@ -4182,6 +4245,7 @@ JS;
         ob_start();
         echo '<div class="hsp-order-auth hsp-order-register-box">';
         echo '<h3>Registrace zákazníka</h3>';
+        echo '<p class="description">Pokud budete objednávky vyzvedávat osobně, adresu teď vyplňovat nemusíte. Vše lze změnit při každé objednávce.</p>';
         if (!empty($errors)) {
             echo '<div class="notice notice-error"><p>' . esc_html(implode(' ', $errors)) . '</p></div>';
         }
@@ -4192,7 +4256,19 @@ JS;
         echo '<p><label>Heslo<br><input type="password" name="reg_password" required class="regular-text"></label></p>';
         echo '<p><label>Jméno zákazníka<br><input type="text" name="reg_name" required value="' . esc_attr($values['name']) . '" class="regular-text"></label></p>';
         echo '<p><label>Telefon<br><input type="text" name="reg_phone" required value="' . esc_attr($values['phone']) . '" class="regular-text"></label></p>';
-        echo '<p><label>Adresa<br><input type="text" name="reg_address" required value="' . esc_attr($values['address']) . '" class="regular-text"></label></p>';
+        echo '<p><label>Adresa (volitelné)<br><input type="text" name="reg_address" value="' . esc_attr($values['address']) . '" class="regular-text"></label></p>';
+        if (!empty($packaging_options)) {
+            echo '<p><label>Preferovaný obal<br><select name="reg_packaging" class="regular-text"><option value="">Bez preference</option>';
+            foreach ($packaging_options as $pack) {
+                $pack_key = sanitize_key((string)($pack['key'] ?? ''));
+                $pack_label = (string)($pack['label'] ?? '');
+                if ($pack_key === '' || $pack_label === '') {
+                    continue;
+                }
+                echo '<option value="' . esc_attr($pack_key) . '"' . selected($values['packaging'], $pack_key, false) . '>' . esc_html($pack_label) . '</option>';
+            }
+            echo '</select></label></p>';
+        }
         echo '<p><button type="submit" name="hsp_order_register_submit" value="1" class="button button-primary">Vytvořit účet</button></p>';
         echo '</form>';
         $login_url = $this->get_order_login_url($redirect);
@@ -4229,6 +4305,10 @@ JS;
         $default_phone = is_user_logged_in() ? (string)get_user_meta($user->ID, 'hsp_customer_phone', true) : '';
         $default_address = is_user_logged_in() ? (string)get_user_meta($user->ID, 'hsp_delivery_address', true) : '';
         $default_email = is_user_logged_in() ? (string)$user->user_email : '';
+        $default_packaging = is_user_logged_in() ? (string)get_user_meta($user->ID, 'hsp_preferred_packaging', true) : '';
+        $packaging_options = $this->get_packaging_options();
+        $packaging_enabled = !empty($settings['packaging_enabled']) && !empty($packaging_options);
+        $default_delivery_type = $default_address !== '' ? 'delivery' : 'pickup';
 
         $a = shortcode_atts(['mode' => 'week'], $atts, 'hsp_order_form');
         $week_mode = ($a['mode'] !== 'day');
@@ -4269,8 +4349,26 @@ JS;
         echo '<label class="hsp-order-field"><span>Telefon</span><input type="tel" id="hsp-order-phone" placeholder="Telefon" value="' . esc_attr($default_phone) . '" /></label>';
         echo '<label class="hsp-order-field"><span>Email (volitelně)</span><input type="email" id="hsp-order-email" placeholder="vas@email.cz" value="' . esc_attr($default_email) . '" /></label>';
         echo '</div>';
-        echo '<div class="hsp-order-delivery"><strong>Doručení</strong><p><label><input type="radio" name="hsp-order-delivery" value="pickup" checked> Osobní odběr</label> <label><input type="radio" name="hsp-order-delivery" value="delivery"> Rozvoz</label></p></div>';
-        echo '<label class="hsp-order-field"><span>Adresa rozvozu</span><input type="text" id="hsp-order-address" placeholder="Ulice, město" value="' . esc_attr($default_address) . '" /></label>';
+        echo '<div class="hsp-order-delivery"><strong>Doručení</strong><p><label><input type="radio" name="hsp-order-delivery" value="pickup" ' . checked($default_delivery_type, 'pickup', false) . '> Osobní odběr</label> <label><input type="radio" name="hsp-order-delivery" value="delivery" ' . checked($default_delivery_type, 'delivery', false) . '> Rozvoz</label></p></div>';
+        echo '<label class="hsp-order-field" id="hsp-order-address-wrap"><span>Adresa rozvozu</span><input type="text" id="hsp-order-address" placeholder="Ulice, město" value="' . esc_attr($default_address) . '" /></label>';
+        if ($packaging_enabled) {
+            echo '<label class="hsp-order-field"><span>Obal</span><select id="hsp-order-packaging"><option value="">Vyberte obal</option>';
+            foreach ($packaging_options as $pack) {
+                $pack_key = sanitize_key((string)($pack['key'] ?? ''));
+                $pack_label = (string)($pack['label'] ?? '');
+                $pack_price = (string)($pack['price'] ?? '0');
+                if ($pack_key === '' || $pack_label === '') {
+                    continue;
+                }
+                $label_full = $pack_label;
+                $price_label = $this->format_price_for_display($pack_price);
+                if ($price_label !== '') {
+                    $label_full .= ' (' . $price_label . ')';
+                }
+                echo '<option value="' . esc_attr($pack_key) . '"' . selected($default_packaging, $pack_key, false) . '>' . esc_html($label_full) . '</option>';
+            }
+            echo '</select></label>';
+        }
         echo '<label class="hsp-order-field"><span>Poznámka</span><textarea id="hsp-order-note" placeholder="Poznámka k objednávce"></textarea></label>';
         echo '<p class="hsp-order-gdpr"><label><input type="checkbox" id="hsp-order-gdpr"> ' . esc_html((string)($settings['gdpr_text'] ?? 'Souhlasím se zpracováním osobních údajů.')) . '</label></p>';
         echo '<button type="button" class="button button-primary" id="hsp-order-submit">Odeslat objednávku na týden</button>';
@@ -4297,6 +4395,7 @@ JS;
                . '.hsp-order-contact h4{margin:0 0 12px;font-size:18px}'
                . '.hsp-order-delivery{margin:12px 0 10px}'
                . '.hsp-order-delivery p{margin:6px 0 0;display:flex;gap:16px;flex-wrap:wrap}'
+               . '#hsp-order-address-wrap.is-hidden{display:none}'
                . '.hsp-order-gdpr{margin:12px 0}'
                . '#hsp-order-submit{min-height:40px;padding:0 16px}'
                . '.hsp-order-help{color:#475569;margin:.25rem 0 .75rem}'
@@ -4311,6 +4410,8 @@ JS;
             'nonce' => wp_create_nonce('hsp_order_submit'),
             'weeks' => $menu_map,
             'weekMode' => $week_mode ? 1 : 0,
+            'homeUrl' => home_url('/'),
+            'packagingEnabled' => $packaging_enabled ? 1 : 0,
         ]) . ';';
         $script_js = <<<'JS'
 (function(){
@@ -4374,8 +4475,18 @@ JS;
     });
     $("#hsp-order-days").html(html);
   }
+  function syncDelivery(){
+    var type=$("input[name='hsp-order-delivery']:checked").val()||'pickup';
+    var $wrap=$("#hsp-order-address-wrap");
+    if(!$wrap.length){return type;}
+    if(type==='delivery'){$wrap.removeClass('is-hidden');}
+    else{$wrap.addClass('is-hidden');}
+    return type;
+  }
   $(document).on('change','#hsp-order-week',render);
+  $(document).on('change',"input[name='hsp-order-delivery']",syncDelivery);
   render();
+  syncDelivery();
 
   $(document).on('click','#hsp-order-submit',function(){
     var weekStart=$("#hsp-order-week").val();
@@ -4392,6 +4503,7 @@ JS;
     var days=[];
     Object.keys(dayMap).forEach(function(date){ days.push({menu_date:date,items:dayMap[date]}); });
 
+    var deliveryType=syncDelivery();
     var payload={
       week_order:1,
       week_start:weekStart,
@@ -4399,23 +4511,21 @@ JS;
       customer_name:$("#hsp-order-name").val(),
       customer_phone:$("#hsp-order-phone").val(),
       customer_email:$("#hsp-order-email").val(),
-      delivery_type:$("input[name='hsp-order-delivery']:checked").val(),
-      delivery_address:$("#hsp-order-address").val(),
+      delivery_type:deliveryType,
+      delivery_address:deliveryType==='delivery'?$("#hsp-order-address").val():'',
       note:$("#hsp-order-note").val(),
-      gdpr_accepted:$("#hsp-order-gdpr").is(':checked')
+      gdpr_accepted:$("#hsp-order-gdpr").is(':checked'),
+      packaging_key:HSP_ORDER.packagingEnabled?($("#hsp-order-packaging").val()||''):''
     };
 
     $.post(HSP_ORDER.ajax,{action:'hsp_submit_order',nonce:HSP_ORDER.nonce,payload:JSON.stringify(payload)})
       .done(function(res){
         if(res&&res.success){
-          try{
-            var u=new URL(window.location.href);
-            u.searchParams.set('hsp_order_success','1');
-            if(res.data&&res.data.order_number){u.searchParams.set('order',String(res.data.order_number));}
-            window.location.href=u.toString();
-            return;
-          }catch(e){}
-          $('#hsp-order-msg').text('Objednávka přijata: '+res.data.order_number);
+          var num=res.data&&res.data.order_number?String(res.data.order_number):'';
+          var msg="<div class='notice notice-success'><p><strong>Objednávka byla úspěšně odeslána"+(num?" ("+num+")":"")+".</strong><br>Rekapitulace přijde do e-mailu. Za 5 sekund budete přesměrováni na úvodní stránku.</p></div>";
+          $('#hsp-order-form').html(msg);
+          setTimeout(function(){ window.location.href=HSP_ORDER.homeUrl||'/'; }, 5000);
+          return;
         }else{
           $('#hsp-order-msg').text((res&&res.data&&res.data.message)?res.data.message:'Objednávku se nepodařilo odeslat.');
         }

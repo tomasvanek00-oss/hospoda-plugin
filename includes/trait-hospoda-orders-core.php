@@ -29,6 +29,8 @@ trait Hospoda_Orders_Core_Trait {
             'gdpr_text' => 'Souhlasím se zpracováním osobních údajů pro vyřízení objednávky.',
             'gdpr_link' => '',
             'retention_days' => 90,
+            'packaging_enabled' => 0,
+            'packaging_options' => "Jednorázový obal|10\nJídlonosič|0",
         ];
     }
 
@@ -64,6 +66,8 @@ trait Hospoda_Orders_Core_Trait {
         $data['gdpr_text'] = sanitize_textarea_field((string)$data['gdpr_text']);
         $data['gdpr_link'] = esc_url_raw((string)$data['gdpr_link']);
         $data['retention_days'] = max(7, (int)$data['retention_days']);
+        $data['packaging_enabled'] = !empty($data['packaging_enabled']) ? 1 : 0;
+        $data['packaging_options'] = sanitize_textarea_field((string)($data['packaging_options'] ?? ''));
         return $data;
     }
 
