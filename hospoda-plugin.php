@@ -4610,6 +4610,10 @@ JS;
         $context['end'] = wp_date('Y-m-d', strtotime('+6 days', $monday_ts));
         $context['label'] = 'Týden ' . wp_date('j. n. Y', $monday_ts) . ' – ' . wp_date('j. n. Y', strtotime('+6 days', $monday_ts));
         $context['day_date'] = $this->normalize_day_for_week(isset($_GET['filter_day']) ? sanitize_text_field((string) wp_unslash($_GET['filter_day'])) : $context['week_start'], $context['week_start']);
+        $orders_tab = isset($_GET['orders_tab']) ? sanitize_key((string) wp_unslash($_GET['orders_tab'])) : 'week';
+        if (!in_array($orders_tab, ['week', 'day'], true)) {
+            $orders_tab = 'week';
+        }
         $orders = $this->query_orders_for_context($context, 300);
         $day_summary = $this->build_day_meal_summary($orders, (string)$context['day_date']);
 
@@ -4629,57 +4633,85 @@ JS;
             $stats_revenue += (float) preg_replace('/[^0-9.,-]/', '', str_replace(',', '.', $price_stat));
         }
 
-        $detail_suffix = '&filter_mode=week&filter_day=' . rawurlencode((string)$context['day_date']) . '&filter_week=' . rawurlencode((string)$context['week_start']);
+        $detail_suffix = '&filter_mode=week&orders_tab=' . rawurlencode($orders_tab) . '&filter_day=' . rawurlencode((string)$context['day_date']) . '&filter_week=' . rawurlencode((string)$context['week_start']);
 
         echo '<div class="wrap"><h1>Objednávky</h1>';
+        $tab_week_url = admin_url('admin.php?page=hospoda-orders&orders_tab=week&filter_mode=week&filter_week=' . rawurlencode((string)$context['week_start']) . '&filter_day=' . rawurlencode((string)$context['day_date']));
+        $tab_day_url = admin_url('admin.php?page=hospoda-orders&orders_tab=day&filter_mode=week&filter_week=' . rawurlencode((string)$context['week_start']) . '&filter_day=' . rawurlencode((string)$context['day_date']));
+        echo '<div style="display:flex;gap:8px;margin:8px 0 14px;">';
+        echo '<a class="button' . ($orders_tab === 'week' ? ' button-primary' : '') . '" href="' . esc_url($tab_week_url) . '">Přehled týdne</a>';
+        echo '<a class="button' . ($orders_tab === 'day' ? ' button-primary' : '') . '" href="' . esc_url($tab_day_url) . '">Přehled dne</a>';
+        echo '</div>';
         echo '<form method="get" style="margin:10px 0 16px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">';
         echo '<input type="hidden" name="page" value="hospoda-orders">';
+        echo '<input type="hidden" name="orders_tab" value="' . esc_attr($orders_tab) . '">';
         echo '<input type="hidden" name="filter_mode" value="week">';
         echo '<label><strong>Týden od</strong><br><input type="date" name="filter_week" value="' . esc_attr((string)$context['week_start']) . '"></label>';
-        echo '<label><strong>Rychlý přehled dne</strong><br><input type="date" name="filter_day" value="' . esc_attr((string)$context['day_date']) . '"></label>';
+        if ($orders_tab === 'day') {
+            $week_ts_for_options = strtotime((string)$context['week_start']);
+            if ($week_ts_for_options === false) {
+                $week_ts_for_options = current_time('timestamp');
+            }
+            $day_labels = [1 => 'Pondělí', 2 => 'Úterý', 3 => 'Středa', 4 => 'Čtvrtek', 5 => 'Pátek'];
+            echo '<label><strong>Den</strong><br><select name="filter_day">';
+            for ($di = 1; $di <= 5; $di++) {
+                $day_ts = strtotime('+' . ($di - 1) . ' days', $week_ts_for_options);
+                if ($day_ts === false) {
+                    continue;
+                }
+                $day_value = wp_date('Y-m-d', $day_ts);
+                $day_caption = ($day_labels[$di] ?? 'Den') . ' ' . wp_date('j. n.', $day_ts);
+                echo '<option value="' . esc_attr($day_value) . '"' . selected($context['day_date'], $day_value, false) . '>' . esc_html($day_caption) . '</option>';
+            }
+            echo '</select></label>';
+        }
         echo '<button class="button button-primary">Použít filtr</button>';
         echo '</form>';
         echo '<p><strong>Aktuální filtr:</strong> ' . esc_html((string)$context['label']) . '</p>';
-        echo '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;max-width:760px;margin:10px 0 16px;">';
-        echo '<div style="background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:10px 12px;"><strong>Objednávek</strong><br><span style="font-size:20px;">' . esc_html((string) $stats_total) . '</span></div>';
-        echo '<div style="background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:10px 12px;"><strong>Rozvoz</strong><br><span style="font-size:20px;">' . esc_html((string) $stats_delivery) . '</span></div>';
-        echo '<div style="background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:10px 12px;"><strong>Vyzvednutí</strong><br><span style="font-size:20px;">' . esc_html((string) $stats_pickup) . '</span></div>';
-        echo '<div style="background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:10px 12px;"><strong>Celkem</strong><br><span style="font-size:20px;">' . esc_html($this->format_price_for_display((string) $stats_revenue)) . '</span></div>';
-        echo '</div>';
-
-        echo '<p>';
-        echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_delivery_csv', $context)) . '">Export rozvoz CSV</a> ';
-        echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_kitchen_csv', $context)) . '">Export kuchyň CSV</a> ';
-        echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_orders_pdf', $context)) . '">Export PDF</a>';
-        echo '</p>';
-
-        echo '<div style="background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:12px 14px;margin:0 0 14px;max-width:900px;">';
-        echo '<h2 style="margin:0 0 8px;font-size:18px;">Přehled jídel pro den ' . esc_html(wp_date('j. n. Y', strtotime((string)$context['day_date']))) . '</h2>';
-        echo '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;">';
-        echo '<div><h3 style="margin:0 0 6px;font-size:15px;">Polévky</h3>';
-        if (empty($day_summary['soups'])) {
-            echo '<p><em>Žádné polévky v objednávkách.</em></p>';
-        } else {
-            echo '<ul style="margin:0;padding-left:18px;">';
-            foreach ($day_summary['soups'] as $title => $qty) {
-                echo '<li>' . esc_html($title) . ' — <strong>' . esc_html((string)$qty) . '×</strong></li>';
-            }
-            echo '</ul>';
+        if ($orders_tab === 'week') {
+            echo '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;max-width:760px;margin:10px 0 16px;">';
+            echo '<div style="background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:10px 12px;"><strong>Objednávek</strong><br><span style="font-size:20px;">' . esc_html((string) $stats_total) . '</span></div>';
+            echo '<div style="background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:10px 12px;"><strong>Rozvoz</strong><br><span style="font-size:20px;">' . esc_html((string) $stats_delivery) . '</span></div>';
+            echo '<div style="background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:10px 12px;"><strong>Vyzvednutí</strong><br><span style="font-size:20px;">' . esc_html((string) $stats_pickup) . '</span></div>';
+            echo '<div style="background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:10px 12px;"><strong>Celkem</strong><br><span style="font-size:20px;">' . esc_html($this->format_price_for_display((string) $stats_revenue)) . '</span></div>';
+            echo '</div>';
         }
-        echo '</div>';
-        echo '<div><h3 style="margin:0 0 6px;font-size:15px;">Hlavní jídla</h3>';
-        if (empty($day_summary['mains'])) {
-            echo '<p><em>Žádná hlavní jídla v objednávkách.</em></p>';
-        } else {
-            echo '<ul style="margin:0;padding-left:18px;">';
-            foreach ($day_summary['mains'] as $title => $qty) {
-                echo '<li>' . esc_html($title) . ' — <strong>' . esc_html((string)$qty) . '×</strong></li>';
+
+        if ($orders_tab === 'day') {
+            echo '<p>';
+            echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_delivery_csv', $context)) . '">Export rozvoz CSV</a> ';
+            echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_kitchen_csv', $context)) . '">Export kuchyň CSV</a> ';
+            echo '<a class="button" href="' . esc_url($this->get_orders_export_url('hsp_order_export_orders_pdf', $context)) . '">Export PDF</a>';
+            echo '</p>';
+
+            echo '<div style="background:#fff;border:1px solid #d5dde8;border-radius:10px;padding:12px 14px;margin:0 0 14px;max-width:900px;">';
+            echo '<h2 style="margin:0 0 8px;font-size:18px;">Přehled jídel pro den ' . esc_html(wp_date('j. n. Y', strtotime((string)$context['day_date']))) . '</h2>';
+            echo '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;">';
+            echo '<div><h3 style="margin:0 0 6px;font-size:15px;">Polévky</h3>';
+            if (empty($day_summary['soups'])) {
+                echo '<p><em>Žádné polévky v objednávkách.</em></p>';
+            } else {
+                echo '<ul style="margin:0;padding-left:18px;">';
+                foreach ($day_summary['soups'] as $title => $qty) {
+                    echo '<li>' . esc_html($title) . ' — <strong>' . esc_html((string)$qty) . '×</strong></li>';
+                }
+                echo '</ul>';
             }
-            echo '</ul>';
+            echo '</div>';
+            echo '<div><h3 style="margin:0 0 6px;font-size:15px;">Hlavní jídla</h3>';
+            if (empty($day_summary['mains'])) {
+                echo '<p><em>Žádná hlavní jídla v objednávkách.</em></p>';
+            } else {
+                echo '<ul style="margin:0;padding-left:18px;">';
+                foreach ($day_summary['mains'] as $title => $qty) {
+                    echo '<li>' . esc_html($title) . ' — <strong>' . esc_html((string)$qty) . '×</strong></li>';
+                }
+                echo '</ul>';
+            }
+            echo '</div>';
+            echo '</div>';
+            echo '</div>';
         }
-        echo '</div>';
-        echo '</div>';
-        echo '</div>';
 
         echo '<table class="widefat striped"><thead><tr><th>Číslo</th><th>Datum menu</th><th>Jméno</th><th>Telefon</th><th>Typ</th><th>Cena</th><th>Stav</th><th>Vytvořeno</th></tr></thead><tbody>';
         if (empty($orders)) {
@@ -4758,31 +4790,49 @@ JS;
         }
         check_admin_referer('hsp_order_exports');
 
-        $context = $this->get_orders_filter_context($_GET);
+        $day = isset($_GET['filter_day']) ? sanitize_text_field((string) wp_unslash($_GET['filter_day'])) : '';
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) {
+            wp_die('Neplatný den exportu.');
+        }
+        $context = [
+            'mode' => 'day',
+            'day_date' => $day,
+            'start' => $day,
+            'end' => $day,
+            'label' => 'Den ' . wp_date('j. n. Y', strtotime($day)),
+            'week_start' => $day,
+        ];
         $orders = $this->query_orders_for_context($context, 500);
 
         header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename=rozvoz-' . $context['start'] . '-' . $context['end'] . '.csv');
+        header('Content-Disposition: attachment; filename=rozvoz-' . $context['day_date'] . '.csv');
         $out = fopen('php://output', 'w');
         fputcsv($out, ['Filtr', $context['label']]);
-        fputcsv($out, ['Objednávka', 'Datum menu', 'Jméno', 'Telefon', 'Adresa', 'Čas', 'Položky']);
+        fputcsv($out, ['Objednávka', 'Jméno', 'Telefon', 'Adresa', 'Položky']);
         foreach ($orders as $order) {
+            $dtype = (string) get_post_meta($order->ID, 'delivery_type', true);
+            if ($dtype !== 'delivery') {
+                continue;
+            }
             $items = get_post_meta($order->ID, 'items', true);
             $item_label = [];
             if (is_array($items)) {
                 foreach ($items as $i) {
                     $lineDate = (string)($i['menu_date'] ?? '');
-                    $prefix = $lineDate !== '' ? ($lineDate . ': ') : '';
-                    $item_label[] = $prefix . (string)($i['title'] ?? '') . ' x' . (int)($i['quantity'] ?? 1);
+                    if ($lineDate !== $context['day_date']) {
+                        continue;
+                    }
+                    $item_label[] = (string)($i['title'] ?? '') . ' x' . (int)($i['quantity'] ?? 1);
                 }
+            }
+            if (empty($item_label)) {
+                continue;
             }
             fputcsv($out, [
                 $order->post_title,
-                get_post_meta($order->ID, 'menu_date', true),
                 get_post_meta($order->ID, 'customer_name', true),
                 get_post_meta($order->ID, 'customer_phone', true),
                 get_post_meta($order->ID, 'delivery_address', true),
-                get_post_meta($order->ID, 'time_window', true),
                 implode('; ', $item_label),
             ]);
         }
@@ -4796,7 +4846,18 @@ JS;
         }
         check_admin_referer('hsp_order_exports');
 
-        $context = $this->get_orders_filter_context($_GET);
+        $day = isset($_GET['filter_day']) ? sanitize_text_field((string) wp_unslash($_GET['filter_day'])) : '';
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) {
+            wp_die('Neplatný den exportu.');
+        }
+        $context = [
+            'mode' => 'day',
+            'day_date' => $day,
+            'start' => $day,
+            'end' => $day,
+            'label' => 'Den ' . wp_date('j. n. Y', strtotime($day)),
+            'week_start' => $day,
+        ];
         $aggregate = [];
         $orders = $this->query_orders_for_context($context, 500);
         foreach ($orders as $order) {
@@ -4806,6 +4867,9 @@ JS;
             }
             foreach ($items as $item) {
                 $menu_date = (string)($item['menu_date'] ?? get_post_meta($order->ID, 'menu_date', true));
+                if ($menu_date !== $context['day_date']) {
+                    continue;
+                }
                 $title = (string)($item['title'] ?? '');
                 $qty = (int)($item['quantity'] ?? 1);
                 if ($title === '') {
@@ -4822,13 +4886,13 @@ JS;
         }
 
         header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename=kuchyn-' . $context['start'] . '-' . $context['end'] . '.csv');
+        header('Content-Disposition: attachment; filename=kuchyn-' . $context['day_date'] . '.csv');
         $out = fopen('php://output', 'w');
         fputcsv($out, ['Filtr', $context['label']]);
-        fputcsv($out, ['Datum menu', 'Položka', 'Počet porcí']);
+        fputcsv($out, ['Položka', 'Počet porcí']);
         foreach ($aggregate as $date => $rows) {
             foreach ($rows as $title => $qty) {
-                fputcsv($out, [$date, $title, $qty]);
+                fputcsv($out, [$title, $qty]);
             }
         }
         fclose($out);
@@ -4841,7 +4905,18 @@ JS;
         }
         check_admin_referer('hsp_order_exports');
 
-        $context = $this->get_orders_filter_context($_GET);
+        $day = isset($_GET['filter_day']) ? sanitize_text_field((string) wp_unslash($_GET['filter_day'])) : '';
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) {
+            wp_die('Neplatný den exportu.');
+        }
+        $context = [
+            'mode' => 'day',
+            'day_date' => $day,
+            'start' => $day,
+            'end' => $day,
+            'label' => 'Den ' . wp_date('j. n. Y', strtotime($day)),
+            'week_start' => $day,
+        ];
         $orders = $this->query_orders_for_context($context, 250);
 
         require_once __DIR__ . '/includes/class-simple-pdf.php';
@@ -4868,6 +4943,9 @@ JS;
             }
             if (is_array($items)) {
                 foreach ($items as $item) {
+                    if ((string)($item['menu_date'] ?? '') !== $context['day_date']) {
+                        continue;
+                    }
                     $lineDate = !empty($item['menu_date']) ? ('[' . $item['menu_date'] . '] ') : '';
                     $pdf->add_text('• ' . $lineDate . (string)($item['title'] ?? '') . ' x' . (int)($item['quantity'] ?? 1), ['size' => 10, 'indent' => 8, 'spacing_after' => 1]);
                 }
