@@ -45,6 +45,7 @@ class Hospoda_Plugin {
         $week = $theme['week'];
         $static = $theme['static'];
         $typo = $theme['typography'];
+        $theme_variant = $this->normalize_theme_variant((string)($theme['variant'] ?? 'classic'));
 
         $base_size = isset($typo['base_size']) ? (int) $typo['base_size'] : 16;
         if ($base_size < 12) {
@@ -63,6 +64,24 @@ class Hospoda_Plugin {
         $static_bullet_symbol = $this->get_bullet_symbol($typo['static_bullet'] ?? 'none');
         $static_bullet_display = $static_bullet_symbol !== '' ? 'inline-block' : 'none';
         $static_bullet_offset = $static_bullet_symbol !== '' ? '1.5em' : '0';
+
+        $day_radius = '12px';
+        $day_shadow = '0 1px 2px rgba(0,0,0,.03)';
+        $day_border_style = 'solid';
+        $group_radius = '12px';
+        $static_radius = '12px';
+        if ($theme_variant === 'modern') {
+            $day_radius = '18px';
+            $day_shadow = '0 10px 26px rgba(15,23,42,.08)';
+            $group_radius = '18px';
+            $static_radius = '18px';
+        } elseif ($theme_variant === 'minimal') {
+            $day_radius = '8px';
+            $day_shadow = 'none';
+            $day_border_style = 'dashed';
+            $group_radius = '8px';
+            $static_radius = '8px';
+        }
 
         $css = '';
         $css .= '.hsp-root{font-size:'.$base_size.'px;line-height:1.5;color:'.$week['body_text'].';';
@@ -83,7 +102,7 @@ class Hospoda_Plugin {
         $css .= '.hsp-root .hsp-week__nav .hsp-nav__date{padding:6px 8px;border:1px solid #ddd;border-radius:6px}';
         $css .= '@media (min-width:960px){.hsp-root .hsp-week{grid-template-columns:1fr 1fr;justify-items:stretch}}';
         $css .= '@media (min-width:960px){.hsp-root .hsp-week > .hsp-day:last-child:nth-child(odd){grid-column:1/-1;justify-self:center;width:calc((100% - var(--hsp-gap))/2)}}';
-        $css .= '.hsp-root .hsp-day{border:1px solid '.$week['card_border'].';border-radius:12px;background:'.$week['card_bg'].';box-shadow:0 1px 2px rgba(0,0,0,.03);overflow:hidden}';
+        $css .= '.hsp-root .hsp-day{border:1px '.$day_border_style.' '.$week['card_border'].';border-radius:'.$day_radius.';background:'.$week['card_bg'].';box-shadow:'.$day_shadow.';overflow:hidden}';
         $css .= '.hsp-root .hsp-day__heading{margin:0;padding:12px 16px;border-bottom:1px solid '.$week['card_border'].';font-weight:700;letter-spacing:.2px;background:'.$week['heading_bg'].';color:'.$week['heading_text'].'}';
         $css .= '.hsp-root .hsp-badge{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:'.$week['badge_bg'].';color:'.$week['badge_text'].';font-size:.85em;font-weight:600}';
         $css .= '.hsp-root .hsp-body{padding:0 16px 12px;color:'.$week['body_text'].'}';
@@ -95,7 +114,7 @@ class Hospoda_Plugin {
         $css .= '.hsp-root .hsp-sides{grid-area:sides;display:block;color:'.$week['sides_text'].';font-size:.9em;margin:2px 0 0}';
         $css .= '.hsp-root .hsp-price{grid-area:price;justify-self:end;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;color:'.$week['price_text'].'}';
         $css .= '.hsp-root .hsp-menu-groups{display:grid;gap:18px;margin:24px 0 0}';
-        $css .= '.hsp-root .hsp-menu-group{border:1px solid '.$week['group_border'].';border-radius:12px;padding:16px 18px;background:'.$week['group_bg'].';box-shadow:0 1px 2px rgba(0,0,0,.04)}';
+        $css .= '.hsp-root .hsp-menu-group{border:1px solid '.$week['group_border'].';border-radius:'.$group_radius.';padding:16px 18px;background:'.$week['group_bg'].';box-shadow:0 1px 2px rgba(0,0,0,.04)}';
         $css .= '.hsp-root .hsp-menu-group__title{display:flex;justify-content:space-between;align-items:baseline;font-size:1.05em;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:'.$week['group_title'].';margin:0 0 6px}';
         $css .= '.hsp-root .hsp-menu-group__price{margin-left:12px;font-weight:700;color:'.$week['group_price'].';font-size:.95em}';
         $css .= '.hsp-root .hsp-menu-group__list{list-style:none;margin:0;padding:0;display:grid;gap:6px;color:'.$week['body_text'].'}';
@@ -103,7 +122,7 @@ class Hospoda_Plugin {
         $css .= '.hsp-root .hsp-menu-group__item::before{content:var(--hsp-group-bullet);display:var(--hsp-group-bullet-display);position:absolute;left:0;top:.7em;transform:translateY(-50%);color:var(--hsp-group-bullet-color);font-weight:700;font-size:.85em;line-height:1}';
         $css .= '.hsp-root .hsp-soup{margin:0}';
         $css .= '.hsp-root .hsp-mains{list-style:none;margin:0;padding:0}';
-        $css .= '.hsp-root .hsp-static{margin:28px 0 0;padding:18px 20px;border:1px solid '.$static['border'].';border-radius:12px;background:'.$static['background'].';box-shadow:0 1px 3px rgba(0,0,0,.04);color:'.$static['text'].'}';
+        $css .= '.hsp-root .hsp-static{margin:28px 0 0;padding:18px 20px;border:1px solid '.$static['border'].';border-radius:'.$static_radius.';background:'.$static['background'].';box-shadow:0 1px 3px rgba(0,0,0,.04);color:'.$static['text'].'}';
         $css .= '.hsp-root .hsp-static__title{margin:0 0 10px;font-size:1.05em;letter-spacing:.08em;text-transform:uppercase;color:'.$static['title'].';font-weight:700}';
         $css .= '.hsp-root .hsp-static__list{list-style:none;margin:0;padding:0;color:'.$static['text'].';font-size:.97em;display:grid;gap:8px}';
         $css .= '.hsp-root .hsp-static__list li{margin:0}';
@@ -2688,6 +2707,12 @@ JS;
         $week_theme = $frontend_theme['week'];
         $static_theme = $frontend_theme['static'];
         $typo_theme = $frontend_theme['typography'];
+        $theme_variant = $this->normalize_theme_variant((string)($frontend_theme['variant'] ?? 'classic'));
+        $theme_variant_options = [
+            'classic' => 'Klasický (vyvážený)',
+            'modern'  => 'Moderní (kulatější, výraznější stín)',
+            'minimal' => 'Minimalistický (ostřejší, jemnější)',
+        ];
         $color_palette = [
             '#0f172a' => 'Tmavě modrá',
             '#1d4ed8' => 'Královská modrá',
@@ -2936,6 +2961,15 @@ JS;
           <fieldset class="hs-branding__theme">
             <legend><strong>Vzhled webového menu</strong></legend>
             <p class="description">Nastavte barvy a styl prvků, které se zobrazují ve veřejném výpisu jídelního lístku.</p>
+            <div class="hs-branding__field" style="max-width:460px;margin-bottom:14px;">
+              <label for="hs-theme-variant"><strong>Přednastavený vzhled pluginu</strong></label>
+              <select id="hs-theme-variant" name="frontend_theme[variant]">
+                <?php foreach ($theme_variant_options as $variant_key => $variant_label) : ?>
+                  <option value="<?php echo esc_attr($variant_key); ?>" <?php selected($theme_variant, $variant_key); ?>><?php echo esc_html($variant_label); ?></option>
+                <?php endforeach; ?>
+              </select>
+              <p class="description">Volba se použije globálně pro výpis menu (úvod, stránka menu) i objednávkový formulář.</p>
+            </div>
             <div class="hs-branding__theme-grid">
               <div class="hs-branding__theme-group">
                 <h3>Týdenní nabídka</h3>
@@ -4446,7 +4480,19 @@ JS;
         echo '</div>';
         echo '</div>';
 
-        $style = '.hsp-order-form--card{max-width:980px;background:#fff;border:1px solid #d9e2ec;border-radius:12px;padding:18px 20px;box-shadow:0 2px 6px rgba(0,0,0,.05)}'
+        $frontend_theme = $this->get_frontend_theme_settings();
+        $theme_variant = $this->normalize_theme_variant((string)($frontend_theme['variant'] ?? 'classic'));
+        $order_card_radius = '12px';
+        $order_card_shadow = '0 2px 6px rgba(0,0,0,.05)';
+        if ($theme_variant === 'modern') {
+            $order_card_radius = '18px';
+            $order_card_shadow = '0 12px 28px rgba(15,23,42,.10)';
+        } elseif ($theme_variant === 'minimal') {
+            $order_card_radius = '8px';
+            $order_card_shadow = 'none';
+        }
+
+        $style = '.hsp-order-form--card{max-width:980px;background:#fff;border:1px solid #d9e2ec;border-radius:' . $order_card_radius . ';padding:18px 20px;box-shadow:' . $order_card_shadow . '}'
                . '.hsp-order-days{display:grid;grid-template-columns:1fr;gap:12px;margin:14px 0}'
                . '.hsp-order-day{border:1px solid #d8e3f2;border-radius:12px;padding:12px 14px;background:#f8fbff}'
                . '.hsp-order-day h5{margin:0 0 10px;font-size:17px;color:#0f172a}'

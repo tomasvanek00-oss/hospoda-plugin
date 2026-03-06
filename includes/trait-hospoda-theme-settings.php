@@ -47,6 +47,7 @@ trait Hospoda_Theme_Settings_Trait {
                 'group_bullet'  => 'none',
                 'static_bullet' => 'none',
             ],
+            'variant' => 'classic',
         ];
     }
 
@@ -96,6 +97,7 @@ trait Hospoda_Theme_Settings_Trait {
                 $output['typography']['group_bullet'] = $this->normalize_bullet_style($typo['group_bullet'] ?? $defaults['typography']['group_bullet']);
                 $output['typography']['static_bullet'] = $this->normalize_bullet_style($typo['static_bullet'] ?? $defaults['typography']['static_bullet']);
             }
+            $output['variant'] = $this->normalize_theme_variant($input['variant'] ?? $defaults['variant']);
         }
 
         return $output;
@@ -120,6 +122,13 @@ trait Hospoda_Theme_Settings_Trait {
         $value = trim($value);
         $allowed = ['400', '500', '600', '700'];
         return in_array($value, $allowed, true) ? $value : '600';
+    }
+
+
+    private function normalize_theme_variant(string $value): string {
+        $value = strtolower(\sanitize_key($value));
+        $allowed = ['classic', 'modern', 'minimal'];
+        return in_array($value, $allowed, true) ? $value : 'classic';
     }
 
     private function get_bullet_symbol(string $style): string {
