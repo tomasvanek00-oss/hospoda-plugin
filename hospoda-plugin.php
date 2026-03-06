@@ -129,26 +129,30 @@ class Hospoda_Plugin {
         $css .= '.hsp-root .hsp-static .hsp-item{position:relative;padding-left:var(--hsp-static-bullet-offset)}';
         $css .= '.hsp-root .hsp-static .hsp-item::before{content:var(--hsp-static-bullet);display:var(--hsp-static-bullet-display);position:absolute;left:0;top:.95em;transform:translateY(-50%);color:var(--hsp-static-bullet-color);font-weight:700;font-size:.85em;line-height:1}';
         $css .= '.hsp-root .hsp-static .hsp-price{color:'.$static['price'].'}';
-        $css .= '.hsp-root.hsp-variant-modern{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(180deg,#f8fbff 0%,#eef4ff 100%);padding:12px;border-radius:22px}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-day{border-color:#bfdbfe;background:#ffffff}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-day__heading{font-size:1.12em;letter-spacing:.01em;background:linear-gradient(90deg,#0f172a,#1e3a8a);color:#f8fafc;border-bottom:0;padding:14px 18px}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-grid{padding:11px 0;gap:4px 12px;border-bottom:1px solid #dbeafe}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-title{font-weight:700;color:#0f172a}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-price{font-weight:700;color:#1d4ed8}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-menu-group{background:#eff6ff;border-color:#bfdbfe}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-menu-group__title{text-transform:none;letter-spacing:.01em;color:#1e40af}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-static{background:#eff6ff;border-color:#bfdbfe}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-toggle{border-radius:999px;padding:11px 18px;box-shadow:0 6px 16px rgba(30,64,175,.20)}';
+        $css .= '.hsp-root .hsp-variant-badge{display:none;margin:0 0 10px;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;width:max-content}';
+        $css .= '.hsp-root.hsp-variant-modern{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif!important;background:linear-gradient(180deg,#f8fbff 0%,#e0ecff 100%)!important;padding:16px!important;border-radius:24px!important;border:1px solid #bfdbfe!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-variant-badge{display:inline-flex!important;background:#1e40af!important;color:#dbeafe!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-day{border-color:#93c5fd!important;background:#ffffff!important;border-radius:18px!important;box-shadow:0 12px 28px rgba(30,64,175,.14)!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-day__heading{font-size:1.16em!important;letter-spacing:.01em!important;background:linear-gradient(90deg,#0f172a,#1e40af)!important;color:#f8fafc!important;border-bottom:0!important;padding:14px 18px!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-grid{padding:12px 0!important;gap:6px 12px!important;border-bottom:1px solid #dbeafe!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-title{font-weight:700!important;color:#0f172a!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-price{font-weight:800!important;color:#1d4ed8!important;font-size:1.03em!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-menu-group{background:#eff6ff!important;border-color:#93c5fd!important;border-radius:18px!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-menu-group__title{text-transform:none!important;letter-spacing:.01em!important;color:#1e40af!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-static{background:#eff6ff!important;border-color:#93c5fd!important;border-radius:18px!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-toggle{border-radius:999px!important;padding:12px 20px!important;box-shadow:0 10px 20px rgba(30,64,175,.24)!important;font-weight:800!important}';
 
-        $css .= '.hsp-root.hsp-variant-minimal{font-family:Georgia,"Times New Roman",serif;background:#ffffff;padding:6px}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-day{background:#ffffff;border-color:#d4d4d8;border-width:1px;border-style:solid}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-day__heading{background:transparent;border-bottom:1px dotted #a1a1aa;text-transform:uppercase;letter-spacing:.08em;color:#27272a;padding:10px 12px}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-body{padding:0 12px 10px}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-grid{border-bottom:1px solid #e4e4e7;grid-template-columns:1fr;grid-template-areas:"title" "sides" "price";gap:3px 0;padding:9px 0}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-price{justify-self:start;text-align:left;color:#52525b;font-size:.96em}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-menu-group{box-shadow:none;border-style:dotted;background:#fafafa}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-static{box-shadow:none;border-style:dotted;background:#fafafa}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-toggle{border-style:dotted;box-shadow:none;background:#fff;color:#18181b;border-color:#71717a}';
+        $css .= '.hsp-root.hsp-variant-minimal{font-family:Georgia,"Times New Roman",serif!important;background:#ffffff!important;padding:8px!important;border:1px dotted #a1a1aa!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-variant-badge{display:inline-flex!important;background:#f4f4f5!important;color:#3f3f46!important;border:1px dotted #71717a!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-day{background:#ffffff!important;border-color:#a1a1aa!important;border-width:1px!important;border-style:dotted!important;border-radius:4px!important;box-shadow:none!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-day__heading{background:transparent!important;border-bottom:1px dotted #a1a1aa!important;text-transform:uppercase!important;letter-spacing:.10em!important;color:#27272a!important;padding:10px 12px!important;font-size:.93em!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-body{padding:0 12px 10px!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-grid{border-bottom:1px solid #e4e4e7!important;grid-template-columns:1fr!important;grid-template-areas:"title" "sides" "price"!important;gap:4px 0!important;padding:10px 0!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-title{font-weight:500!important;font-size:1.01em!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-price{justify-self:start!important;text-align:left!important;color:#52525b!important;font-size:.95em!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-menu-group{box-shadow:none!important;border-style:dotted!important;background:#fafafa!important;border-radius:4px!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-static{box-shadow:none!important;border-style:dotted!important;background:#fafafa!important;border-radius:4px!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-toggle{border-style:dotted!important;box-shadow:none!important;background:#fff!important;color:#18181b!important;border-color:#71717a!important;border-radius:4px!important}';
         return "\n<style id=\"hospoda-frontend-inline\">$css</style>\n";
     }
 
@@ -4558,7 +4562,7 @@ JS;
                . '.hsp-order-pricing-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed #d5dee8}'
                . '.hsp-order-pricing-row:last-of-type{border-bottom:0}'
                . '.hsp-order-pricing-row--total{font-size:18px;font-weight:700;padding-top:10px}'
-               . '.hsp-order-form--card.hsp-order-variant-modern{background:linear-gradient(180deg,#f8fbff,#edf3ff);border-color:#bfdbfe}'
+               . '.hsp-order-form--card.hsp-order-variant-modern{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif!important;background:linear-gradient(180deg,#f8fbff,#eaf2ff)!important;border-color:#93c5fd!important;border-width:2px!important}'
                . '.hsp-order-form--card.hsp-order-variant-modern h3{font-size:30px;color:#0f172a;letter-spacing:-.01em}'
                . '.hsp-order-form--card.hsp-order-variant-modern .hsp-order-day{border-radius:16px;border-color:#bfdbfe;box-shadow:0 10px 24px rgba(15,23,42,.08)}'
                . '.hsp-order-form--card.hsp-order-variant-modern .hsp-order-day h5{color:#1e40af}'
@@ -4566,7 +4570,7 @@ JS;
                . '.hsp-order-form--card.hsp-order-variant-modern #hsp-order-submit{border-radius:999px;padding:0 22px;background:#1d4ed8;border-color:#1d4ed8}'
                . '.hsp-order-form--card.hsp-order-variant-modern .hsp-order-contact,.hsp-order-form--card.hsp-order-variant-modern .hsp-order-pricing{border-radius:16px;border-color:#bfdbfe;background:#f8fbff}'
 
-               . '.hsp-order-form--card.hsp-order-variant-minimal{font-family:Georgia,"Times New Roman",serif;background:#fff;border-color:#a1a1aa}'
+               . '.hsp-order-form--card.hsp-order-variant-minimal{font-family:Georgia,"Times New Roman",serif!important;background:#fff!important;border-color:#a1a1aa!important;border-style:dotted!important}'
                . '.hsp-order-form--card.hsp-order-variant-minimal h3{font-size:28px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:#27272a}'
                . '.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-help{font-size:18px;color:#52525b}'
                . '.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-day{border-style:dotted;border-color:#a1a1aa;box-shadow:none;background:#fff}'
@@ -5555,6 +5559,11 @@ JS;
             echo $this->inline_css_tag();
             echo '<div id="hsp-menu"></div>';
             echo '<div class="hsp-root hsp-variant-' . esc_attr($theme_variant) . '">';
+            if ($theme_variant === 'modern') {
+                echo '<div class="hsp-variant-badge">Moderní styl</div>';
+            } elseif ($theme_variant === 'minimal') {
+                echo '<div class="hsp-variant-badge">Minimal styl</div>';
+            }
 
             // COLLAPSED: zobrazíme jen jeden den (dnes, pokud spadá do zvoleného týdne; jinak pondělí)
             if (!$manual_week_start && $effective_today instanceof \DateTimeImmutable) {
@@ -5664,6 +5673,11 @@ if (dateEl){ dateEl.addEventListener("change", function(e){ e.preventDefault(); 
             $theme = $this->get_frontend_theme_settings();
             $theme_variant = $this->normalize_theme_variant((string)($theme['variant'] ?? 'classic'));
             $wrap .= '<div class="hsp-root hsp-variant-' . esc_attr($theme_variant) . '"><div class="hsp-single">';
+            if ($theme_variant === 'modern') {
+                $wrap .= '<div class="hsp-variant-badge">Moderní styl</div>';
+            } elseif ($theme_variant === 'minimal') {
+                $wrap .= '<div class="hsp-variant-badge">Minimal styl</div>';
+            }
             if (!empty($a['heading'])) $wrap .= '<h3 class="hsp-single__title">'.esc_html($a['heading']).'</h3>';
             $wrap .= $html;
             $static_html = $this->render_static_menu_block();
