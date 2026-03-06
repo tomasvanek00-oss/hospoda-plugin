@@ -129,14 +129,26 @@ class Hospoda_Plugin {
         $css .= '.hsp-root .hsp-static .hsp-item{position:relative;padding-left:var(--hsp-static-bullet-offset)}';
         $css .= '.hsp-root .hsp-static .hsp-item::before{content:var(--hsp-static-bullet);display:var(--hsp-static-bullet-display);position:absolute;left:0;top:.95em;transform:translateY(-50%);color:var(--hsp-static-bullet-color);font-weight:700;font-size:.85em;line-height:1}';
         $css .= '.hsp-root .hsp-static .hsp-price{color:'.$static['price'].'}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-day__heading{font-size:1.08em;letter-spacing:.03em}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-grid{padding:10px 0}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-menu-group__title{text-transform:none;letter-spacing:.02em}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-day__heading{background:transparent;border-bottom:1px dashed '.$week['card_border'].';text-transform:none}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-grid{border-bottom:1px solid '.$week['card_border'].'}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-toggle{border-style:dashed;box-shadow:none}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-menu-group{box-shadow:none}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-static{box-shadow:none}';
+        $css .= '.hsp-root.hsp-variant-modern{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(180deg,#f8fbff 0%,#eef4ff 100%);padding:12px;border-radius:22px}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-day{border-color:#bfdbfe;background:#ffffff}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-day__heading{font-size:1.12em;letter-spacing:.01em;background:linear-gradient(90deg,#0f172a,#1e3a8a);color:#f8fafc;border-bottom:0;padding:14px 18px}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-grid{padding:11px 0;gap:4px 12px;border-bottom:1px solid #dbeafe}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-title{font-weight:700;color:#0f172a}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-price{font-weight:700;color:#1d4ed8}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-menu-group{background:#eff6ff;border-color:#bfdbfe}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-menu-group__title{text-transform:none;letter-spacing:.01em;color:#1e40af}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-static{background:#eff6ff;border-color:#bfdbfe}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-toggle{border-radius:999px;padding:11px 18px;box-shadow:0 6px 16px rgba(30,64,175,.20)}';
+
+        $css .= '.hsp-root.hsp-variant-minimal{font-family:Georgia,"Times New Roman",serif;background:#ffffff;padding:6px}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-day{background:#ffffff;border-color:#d4d4d8;border-width:1px;border-style:solid}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-day__heading{background:transparent;border-bottom:1px dotted #a1a1aa;text-transform:uppercase;letter-spacing:.08em;color:#27272a;padding:10px 12px}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-body{padding:0 12px 10px}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-grid{border-bottom:1px solid #e4e4e7;grid-template-columns:1fr;grid-template-areas:"title" "sides" "price";gap:3px 0;padding:9px 0}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-price{justify-self:start;text-align:left;color:#52525b;font-size:.96em}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-menu-group{box-shadow:none;border-style:dotted;background:#fafafa}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-static{box-shadow:none;border-style:dotted;background:#fafafa}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-toggle{border-style:dotted;box-shadow:none;background:#fff;color:#18181b;border-color:#71717a}';
         return "\n<style id=\"hospoda-frontend-inline\">$css</style>\n";
     }
 
@@ -4433,14 +4445,27 @@ JS;
             }
         }
 
+        $order_title = 'Objednávka jídel';
+        $order_help = 'Vyberte jídla na celý týden a odešlete jednu souhrnnou objednávku.';
+        $order_submit_text = 'Odeslat objednávku na týden';
+        if ($theme_variant === 'modern') {
+            $order_title = 'Online objednávka menu';
+            $order_help = 'Sestavte si týdenní objednávku v moderním přehledu. Vyberte dny, jídla a odešlete vše najednou.';
+            $order_submit_text = 'Potvrdit online objednávku';
+        } elseif ($theme_variant === 'minimal') {
+            $order_title = 'Týdenní objednávka';
+            $order_help = 'Jednoduchý výběr jídel bez zbytečností – vyberte položky a odešlete objednávku.';
+            $order_submit_text = 'Odeslat týdenní výběr';
+        }
+
         ob_start();
         echo '<div class="hsp-order-form hsp-order-form--card hsp-order-variant-' . esc_attr($theme_variant) . '" id="hsp-order-form">';
         if (isset($_GET['hsp_order_success'])) {
             $order_number = isset($_GET['order']) ? sanitize_text_field((string) wp_unslash($_GET['order'])) : '';
             echo '<div class="notice notice-success" style="margin:0 0 12px;"><p><strong>Objednávka byla úspěšně odeslána.</strong>' . ($order_number !== '' ? ' Číslo objednávky: <strong>' . esc_html($order_number) . '</strong>.' : '') . '</p></div>';
         }
-        echo '<h3>Objednávka jídel</h3>';
-        echo '<p class="hsp-order-help">Vyberte jídla na celý týden a odešlete jednu souhrnnou objednávku.</p>';
+        echo '<h3>' . esc_html($order_title) . '</h3>';
+        echo '<p class="hsp-order-help">' . esc_html($order_help) . '</p>';
         echo '<div id="hsp-order-msg" class="hsp-order-msg" aria-live="polite"></div>';
         echo '<label class="hsp-order-label">Týden od pondělí <select id="hsp-order-week" class="hsp-order-select">';
         foreach ($weeks as $monday) {
@@ -4487,7 +4512,7 @@ JS;
         }
         echo '<label class="hsp-order-field"><span>Poznámka</span><textarea id="hsp-order-note" placeholder="Poznámka k objednávce"></textarea></label>';
         echo '<p class="hsp-order-gdpr"><label><input type="checkbox" id="hsp-order-gdpr"> ' . esc_html((string)($settings['gdpr_text'] ?? 'Souhlasím se zpracováním osobních údajů.')) . '</label></p>';
-        echo '<button type="button" class="button button-primary" id="hsp-order-submit">Odeslat objednávku na týden</button>';
+        echo '<button type="button" class="button button-primary" id="hsp-order-submit">' . esc_html($order_submit_text) . '</button>';
         echo '</div>';
         echo '</div>';
 
@@ -4533,10 +4558,22 @@ JS;
                . '.hsp-order-pricing-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed #d5dee8}'
                . '.hsp-order-pricing-row:last-of-type{border-bottom:0}'
                . '.hsp-order-pricing-row--total{font-size:18px;font-weight:700;padding-top:10px}'
-               . '.hsp-order-form--card.hsp-order-variant-modern .hsp-order-day{border-radius:14px;box-shadow:0 8px 20px rgba(15,23,42,.08)}'
-               . '.hsp-order-form--card.hsp-order-variant-modern .hsp-order-contact{border-radius:14px}'
-               . '.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-day{border-style:dashed;box-shadow:none}'
-               . '.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-contact,.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-pricing{box-shadow:none;border-style:dashed}'
+               . '.hsp-order-form--card.hsp-order-variant-modern{background:linear-gradient(180deg,#f8fbff,#edf3ff);border-color:#bfdbfe}'
+               . '.hsp-order-form--card.hsp-order-variant-modern h3{font-size:30px;color:#0f172a;letter-spacing:-.01em}'
+               . '.hsp-order-form--card.hsp-order-variant-modern .hsp-order-day{border-radius:16px;border-color:#bfdbfe;box-shadow:0 10px 24px rgba(15,23,42,.08)}'
+               . '.hsp-order-form--card.hsp-order-variant-modern .hsp-order-day h5{color:#1e40af}'
+               . '.hsp-order-form--card.hsp-order-variant-modern .hsp-order-item{border-color:#dbeafe}'
+               . '.hsp-order-form--card.hsp-order-variant-modern #hsp-order-submit{border-radius:999px;padding:0 22px;background:#1d4ed8;border-color:#1d4ed8}'
+               . '.hsp-order-form--card.hsp-order-variant-modern .hsp-order-contact,.hsp-order-form--card.hsp-order-variant-modern .hsp-order-pricing{border-radius:16px;border-color:#bfdbfe;background:#f8fbff}'
+
+               . '.hsp-order-form--card.hsp-order-variant-minimal{font-family:Georgia,"Times New Roman",serif;background:#fff;border-color:#a1a1aa}'
+               . '.hsp-order-form--card.hsp-order-variant-minimal h3{font-size:28px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:#27272a}'
+               . '.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-help{font-size:18px;color:#52525b}'
+               . '.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-day{border-style:dotted;border-color:#a1a1aa;box-shadow:none;background:#fff}'
+               . '.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-item{border-style:dotted;border-color:#d4d4d8}'
+               . '.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-item-controls{display:grid;grid-template-columns:1fr 84px}'
+               . '.hsp-order-form--card.hsp-order-variant-minimal #hsp-order-submit{background:#fff;color:#27272a;border:1px dotted #71717a;box-shadow:none}'
+               . '.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-contact,.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-pricing{box-shadow:none;border-style:dotted;background:#fafafa}'
                . '@media (max-width:640px){.hsp-order-form--card{padding:14px 12px;overflow:hidden}.hsp-order-item{flex-direction:column;align-items:stretch}.hsp-order-item-controls{width:100%;display:grid;grid-template-columns:1fr 88px;gap:8px}.hsp-order-side{min-width:0;width:100%}.hsp-order-item input[type=number]{width:100%}.hsp-order-day{padding:10px}.hsp-order-grid{grid-template-columns:1fr}}';
         wp_register_style('hsp-order-inline', false, [], VERSION);
         wp_enqueue_style('hsp-order-inline');
