@@ -129,6 +129,14 @@ class Hospoda_Plugin {
         $css .= '.hsp-root .hsp-static .hsp-item{position:relative;padding-left:var(--hsp-static-bullet-offset)}';
         $css .= '.hsp-root .hsp-static .hsp-item::before{content:var(--hsp-static-bullet);display:var(--hsp-static-bullet-display);position:absolute;left:0;top:.95em;transform:translateY(-50%);color:var(--hsp-static-bullet-color);font-weight:700;font-size:.85em;line-height:1}';
         $css .= '.hsp-root .hsp-static .hsp-price{color:'.$static['price'].'}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-day__heading{font-size:1.08em;letter-spacing:.03em}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-grid{padding:10px 0}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-menu-group__title{text-transform:none;letter-spacing:.02em}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-day__heading{background:transparent;border-bottom:1px dashed '.$week['card_border'].';text-transform:none}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-grid{border-bottom:1px solid '.$week['card_border'].'}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-toggle{border-style:dashed;box-shadow:none}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-menu-group{box-shadow:none}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-static{box-shadow:none}';
         return "\n<style id=\"hospoda-frontend-inline\">$css</style>\n";
     }
 
@@ -4408,6 +4416,9 @@ JS;
         $a = shortcode_atts(['mode' => 'week'], $atts, 'hsp_order_form');
         $week_mode = ($a['mode'] !== 'day');
 
+        $frontend_theme = $this->get_frontend_theme_settings();
+        $theme_variant = $this->normalize_theme_variant((string)($frontend_theme['variant'] ?? 'classic'));
+
         $weeks = $this->get_next_mondays(4);
         $menu_map = [];
         foreach ($weeks as $monday) {
@@ -4423,7 +4434,7 @@ JS;
         }
 
         ob_start();
-        echo '<div class="hsp-order-form hsp-order-form--card" id="hsp-order-form">';
+        echo '<div class="hsp-order-form hsp-order-form--card hsp-order-variant-' . esc_attr($theme_variant) . '" id="hsp-order-form">';
         if (isset($_GET['hsp_order_success'])) {
             $order_number = isset($_GET['order']) ? sanitize_text_field((string) wp_unslash($_GET['order'])) : '';
             echo '<div class="notice notice-success" style="margin:0 0 12px;"><p><strong>Objednávka byla úspěšně odeslána.</strong>' . ($order_number !== '' ? ' Číslo objednávky: <strong>' . esc_html($order_number) . '</strong>.' : '') . '</p></div>';
@@ -4480,8 +4491,6 @@ JS;
         echo '</div>';
         echo '</div>';
 
-        $frontend_theme = $this->get_frontend_theme_settings();
-        $theme_variant = $this->normalize_theme_variant((string)($frontend_theme['variant'] ?? 'classic'));
         $order_card_radius = '12px';
         $order_card_shadow = '0 2px 6px rgba(0,0,0,.05)';
         if ($theme_variant === 'modern') {
@@ -4524,6 +4533,10 @@ JS;
                . '.hsp-order-pricing-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed #d5dee8}'
                . '.hsp-order-pricing-row:last-of-type{border-bottom:0}'
                . '.hsp-order-pricing-row--total{font-size:18px;font-weight:700;padding-top:10px}'
+               . '.hsp-order-form--card.hsp-order-variant-modern .hsp-order-day{border-radius:14px;box-shadow:0 8px 20px rgba(15,23,42,.08)}'
+               . '.hsp-order-form--card.hsp-order-variant-modern .hsp-order-contact{border-radius:14px}'
+               . '.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-day{border-style:dashed;box-shadow:none}'
+               . '.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-contact,.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-pricing{box-shadow:none;border-style:dashed}'
                . '@media (max-width:640px){.hsp-order-form--card{padding:14px 12px;overflow:hidden}.hsp-order-item{flex-direction:column;align-items:stretch}.hsp-order-item-controls{width:100%;display:grid;grid-template-columns:1fr 88px;gap:8px}.hsp-order-side{min-width:0;width:100%}.hsp-order-item input[type=number]{width:100%}.hsp-order-day{padding:10px}.hsp-order-grid{grid-template-columns:1fr}}';
         wp_register_style('hsp-order-inline', false, [], VERSION);
         wp_enqueue_style('hsp-order-inline');
@@ -5500,9 +5513,11 @@ JS;
             $get_full  = isset($_GET['full']) && in_array(strtolower((string)$_GET['full']), ['1','true','yes','ano'], true);
             $start_expanded = $attr_full || $get_full || (isset($_GET['view']) && $_GET['view'] === 'full');
             ob_start();
+            $theme = $this->get_frontend_theme_settings();
+            $theme_variant = $this->normalize_theme_variant((string)($theme['variant'] ?? 'classic'));
             echo $this->inline_css_tag();
             echo '<div id="hsp-menu"></div>';
-            echo '<div class="hsp-root">';
+            echo '<div class="hsp-root hsp-variant-' . esc_attr($theme_variant) . '">';
 
             // COLLAPSED: zobrazíme jen jeden den (dnes, pokud spadá do zvoleného týdne; jinak pondělí)
             if (!$manual_week_start && $effective_today instanceof \DateTimeImmutable) {
@@ -5609,7 +5624,9 @@ if (dateEl){ dateEl.addEventListener("change", function(e){ e.preventDefault(); 
         $html = $this->render_day_menu_html($date);
         if ($html){
             $wrap = $this->inline_css_tag();
-            $wrap .= '<div class="hsp-root"><div class="hsp-single">';
+            $theme = $this->get_frontend_theme_settings();
+            $theme_variant = $this->normalize_theme_variant((string)($theme['variant'] ?? 'classic'));
+            $wrap .= '<div class="hsp-root hsp-variant-' . esc_attr($theme_variant) . '"><div class="hsp-single">';
             if (!empty($a['heading'])) $wrap .= '<h3 class="hsp-single__title">'.esc_html($a['heading']).'</h3>';
             $wrap .= $html;
             $static_html = $this->render_static_menu_block();
