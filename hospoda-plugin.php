@@ -229,11 +229,11 @@ class Hospoda_Plugin {
                 $ver = filemtime($file);
                 \wp_enqueue_style('hospoda-frontend', \plugins_url($rel, __FILE__), [], $ver);
                 // High-specificity safeguards so theme styles (e.g., Divi) don't override our layout
-                $override = '.hsp-root .hsp-mains{list-style:none!important;margin:0!important;padding:0!important}'
-                          . '.hsp-root .hsp-item{display:grid!important;grid-template-columns:1fr auto!important;align-items:start!important}'
-                          . '.hsp-root .hsp-title{font-weight:'.$title_weight.';color:'.$week_body.'}'
-                          . '.hsp-root .hsp-sides{color:'.$week_sides.'}'
-                          . '.hsp-root .hsp-price{margin-left:1rem;white-space:nowrap;font-variant-numeric:tabular-nums;color:'.$week_price.'}';
+                $override = '.hsp-root.hsp-variant-classic .hsp-mains{list-style:none!important;margin:0!important;padding:0!important}'
+                          . '.hsp-root.hsp-variant-classic .hsp-item{display:grid!important;grid-template-columns:1fr auto!important;align-items:start!important}'
+                          . '.hsp-root.hsp-variant-classic .hsp-title{font-weight:'.$title_weight.';color:'.$week_body.'}'
+                          . '.hsp-root.hsp-variant-classic .hsp-sides{color:'.$week_sides.'}'
+                          . '.hsp-root.hsp-variant-classic .hsp-price{margin-left:1rem;white-space:nowrap;font-variant-numeric:tabular-nums;color:'.$week_price.'}';
                 \wp_add_inline_style('hospoda-frontend', $override);
                 $found = true;
                 break;
@@ -244,11 +244,11 @@ class Hospoda_Plugin {
             \wp_register_style('hospoda-frontend', false, [], VERSION);
             \wp_enqueue_style('hospoda-frontend');
             \wp_add_inline_style('hospoda-frontend', $fallback);
-            $override = '.hsp-root .hsp-mains{list-style:none!important;margin:0!important;padding:0!important}'
-                      . '.hsp-root .hsp-item{display:grid!important;grid-template-columns:1fr auto!important;align-items:start!important}'
-                      . '.hsp-root .hsp-title{font-weight:'.$title_weight.';color:'.$week_body.'}'
-                      . '.hsp-root .hsp-sides{color:'.$week_sides.'}'
-                      . '.hsp-root .hsp-price{margin-left:1rem;white-space:nowrap;font-variant-numeric:tabular-nums;color:'.$week_price.'}';
+            $override = '.hsp-root.hsp-variant-classic .hsp-mains{list-style:none!important;margin:0!important;padding:0!important}'
+                      . '.hsp-root.hsp-variant-classic .hsp-item{display:grid!important;grid-template-columns:1fr auto!important;align-items:start!important}'
+                      . '.hsp-root.hsp-variant-classic .hsp-title{font-weight:'.$title_weight.';color:'.$week_body.'}'
+                      . '.hsp-root.hsp-variant-classic .hsp-sides{color:'.$week_sides.'}'
+                      . '.hsp-root.hsp-variant-classic .hsp-price{margin-left:1rem;white-space:nowrap;font-variant-numeric:tabular-nums;color:'.$week_price.'}';
             \wp_add_inline_style('hospoda-frontend', $override);
         }
     }
@@ -262,14 +262,14 @@ class Hospoda_Plugin {
         $title_weight = $this->normalize_title_weight((string)($typo['title_weight'] ?? '600'));
 
         echo "\n<style id=\"hospoda-frontend-probe\">\n".
-             ".hsp-week ul.hsp-mains{list-style:none!important;margin:0!important;padding:0!important}\n".
-             ".hsp-week .hsp-item{display:grid!important;grid-template-columns:1fr auto!important;align-items:start!important}\n".
-             ".hsp-week .hsp-title{font-weight:{$title_weight};color:{$week['body_text']}}\n".
-             ".hsp-week .hsp-sides{color:{$week['sides_text']};font-size:.9em;display:block}\n".
-             ".hsp-week .hsp-price{margin-left:1rem;white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right;color:{$week['price_text']}}\n".
-             ".hsp-root .hsp-static{margin-top:24px;padding:18px 20px;border:1px solid {$static['border']};border-radius:12px;background:{$static['background']}}\n".
-             ".hsp-root .hsp-static__title{margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:{$static['title']}}\n".
-             ".hsp-root .hsp-static__list{list-style:none;margin:0;padding:0;display:grid;gap:8px;color:{$static['text']}}\n".
+             ".hsp-root.hsp-variant-classic .hsp-week ul.hsp-mains{list-style:none!important;margin:0!important;padding:0!important}\n".
+             ".hsp-root.hsp-variant-classic .hsp-week .hsp-item{display:grid!important;grid-template-columns:1fr auto!important;align-items:start!important}\n".
+             ".hsp-root.hsp-variant-classic .hsp-week .hsp-title{font-weight:{$title_weight};color:{$week['body_text']}}\n".
+             ".hsp-root.hsp-variant-classic .hsp-week .hsp-sides{color:{$week['sides_text']};font-size:.9em;display:block}\n".
+             ".hsp-root.hsp-variant-classic .hsp-week .hsp-price{margin-left:1rem;white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right;color:{$week['price_text']}}\n".
+             ".hsp-root.hsp-variant-classic .hsp-static{margin-top:24px;padding:18px 20px;border:1px solid {$static['border']};border-radius:12px;background:{$static['background']}}\n".
+             ".hsp-root.hsp-variant-classic .hsp-static__title{margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:{$static['title']}}\n".
+             ".hsp-root.hsp-variant-classic .hsp-static__list{list-style:none;margin:0;padding:0;display:grid;gap:8px;color:{$static['text']}}\n".
              "</style>\n";
     }
 
