@@ -127,7 +127,7 @@ trait Hospoda_Theme_Settings_Trait {
 
     private function normalize_theme_variant(string $value): string {
         $value = strtolower(\sanitize_key($value));
-        $allowed = ['classic', 'modern', 'minimal'];
+        $allowed = ['classic', 'modern', 'minimal', 'czech'];
         return in_array($value, $allowed, true) ? $value : 'classic';
     }
 

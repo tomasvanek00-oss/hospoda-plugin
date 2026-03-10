@@ -134,9 +134,9 @@ class Hospoda_Plugin {
         $css .= '.hsp-root.hsp-variant-modern .hsp-variant-badge{display:inline-flex!important;background:#1e40af!important;color:#dbeafe!important}';
         $css .= '.hsp-root.hsp-variant-modern .hsp-day{border-color:#93c5fd!important;background:#ffffff!important;border-radius:18px!important;box-shadow:0 12px 28px rgba(30,64,175,.14)!important}';
         $css .= '.hsp-root.hsp-variant-modern .hsp-day__heading{font-size:1.16em!important;letter-spacing:.01em!important;background:linear-gradient(90deg,#0f172a,#1e40af)!important;color:#f8fafc!important;border-bottom:0!important;padding:14px 18px!important}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-grid{padding:12px 0!important;gap:6px 12px!important;border-bottom:1px solid #dbeafe!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-grid{padding:12px 0!important;gap:6px 12px!important;border-bottom:1px solid #dbeafe!important;grid-template-columns:1fr!important;grid-template-areas:"price" "title" "sides"!important}';
         $css .= '.hsp-root.hsp-variant-modern .hsp-title{font-weight:700!important;color:#0f172a!important}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-price{font-weight:800!important;color:#1d4ed8!important;font-size:1.03em!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-price{font-weight:800!important;color:#1d4ed8!important;font-size:1.03em!important;justify-self:start!important;text-align:left!important;display:inline-flex!important;background:#dbeafe!important;padding:2px 8px!important;border-radius:999px!important;width:max-content!important}';
         $css .= '.hsp-root.hsp-variant-modern .hsp-menu-group{background:#eff6ff!important;border-color:#93c5fd!important;border-radius:18px!important}';
         $css .= '.hsp-root.hsp-variant-modern .hsp-menu-group__title{text-transform:none!important;letter-spacing:.01em!important;color:#1e40af!important}';
         $css .= '.hsp-root.hsp-variant-modern .hsp-static{background:#eff6ff!important;border-color:#93c5fd!important;border-radius:18px!important}';
@@ -147,12 +147,25 @@ class Hospoda_Plugin {
         $css .= '.hsp-root.hsp-variant-minimal .hsp-day{background:#ffffff!important;border-color:#a1a1aa!important;border-width:1px!important;border-style:dotted!important;border-radius:4px!important;box-shadow:none!important}';
         $css .= '.hsp-root.hsp-variant-minimal .hsp-day__heading{background:transparent!important;border-bottom:1px dotted #a1a1aa!important;text-transform:uppercase!important;letter-spacing:.10em!important;color:#27272a!important;padding:10px 12px!important;font-size:.93em!important}';
         $css .= '.hsp-root.hsp-variant-minimal .hsp-body{padding:0 12px 10px!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-grid{border-bottom:1px solid #e4e4e7!important;grid-template-columns:1fr!important;grid-template-areas:"title" "sides" "price"!important;gap:4px 0!important;padding:10px 0!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-title{font-weight:500!important;font-size:1.01em!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-price{justify-self:start!important;text-align:left!important;color:#52525b!important;font-size:.95em!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-grid{border-bottom:1px solid #e4e4e7!important;grid-template-columns:1fr auto!important;grid-template-areas:"title title" "sides price"!important;gap:4px 10px!important;padding:10px 0!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-title{font-weight:500!important;font-size:1.01em!important;font-style:italic!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-price{justify-self:end!important;text-align:right!important;color:#52525b!important;font-size:.95em!important;border-left:1px dotted #a1a1aa!important;padding-left:8px!important}';
         $css .= '.hsp-root.hsp-variant-minimal .hsp-menu-group{box-shadow:none!important;border-style:dotted!important;background:#fafafa!important;border-radius:4px!important}';
         $css .= '.hsp-root.hsp-variant-minimal .hsp-static{box-shadow:none!important;border-style:dotted!important;background:#fafafa!important;border-radius:4px!important}';
         $css .= '.hsp-root.hsp-variant-minimal .hsp-toggle{border-style:dotted!important;box-shadow:none!important;background:#fff!important;color:#18181b!important;border-color:#71717a!important;border-radius:4px!important}';
+        $css .= '.hsp-root.hsp-variant-czech{font-family:"Trebuchet MS",Arial,sans-serif!important;background:linear-gradient(180deg,#1a1a1a,#101010)!important;padding:14px!important;border:1px solid #2f2f2f!important;border-radius:10px!important}';
+        $css .= '.hsp-root.hsp-variant-czech .hsp-variant-badge{display:inline-flex!important;background:#111!important;color:#eab308!important;border:1px solid #b45309!important}';
+        $css .= '.hsp-root.hsp-variant-czech .hsp-day{background:#202020!important;border:1px solid #3a3a3a!important;border-radius:10px!important;box-shadow:0 3px 12px rgba(0,0,0,.45)!important}';
+        $css .= '.hsp-root.hsp-variant-czech .hsp-day__heading{background:#111!important;color:#f5f5f5!important;border-bottom:1px solid #b45309!important;letter-spacing:.04em!important;text-transform:uppercase!important}';
+        $css .= '.hsp-root.hsp-variant-czech .hsp-body,.hsp-root.hsp-variant-czech .hsp-title{color:#f3f4f6!important}';
+        $css .= '.hsp-root.hsp-variant-czech .hsp-sides{color:#d4d4d8!important}';
+        $css .= '.hsp-root.hsp-variant-czech .hsp-price{color:#f59e0b!important;font-weight:800!important}';
+        $css .= '.hsp-root.hsp-variant-czech .hsp-grid{border-bottom:1px dashed #444!important}';
+        $css .= '.hsp-root.hsp-variant-czech .hsp-menu-group{background:#181818!important;border-color:#b45309!important}';
+        $css .= '.hsp-root.hsp-variant-czech .hsp-menu-group__title,.hsp-root.hsp-variant-czech .hsp-menu-group__price{color:#f59e0b!important}';
+        $css .= '.hsp-root.hsp-variant-czech .hsp-static{background:#181818!important;border-color:#b45309!important;color:#e5e7eb!important}';
+        $css .= '.hsp-root.hsp-variant-czech .hsp-static__title{color:#f59e0b!important}';
+        $css .= '.hsp-root.hsp-variant-czech .hsp-toggle{background:#b45309!important;border-color:#b45309!important;color:#fff!important;border-radius:6px!important;box-shadow:0 2px 10px rgba(0,0,0,.35)!important}';
         return "\n<style id=\"hospoda-frontend-inline\">$css</style>\n";
     }
 
@@ -2736,6 +2749,7 @@ JS;
             'classic' => 'Klasický (vyvážený)',
             'modern'  => 'Moderní (kulatější, výraznější stín)',
             'minimal' => 'Minimalistický (ostřejší, jemnější)',
+            'czech'   => 'Česká restaurace (tmavý tradiční styl)',
         ];
         $color_palette = [
             '#0f172a' => 'Tmavě modrá',
@@ -4460,6 +4474,10 @@ JS;
             $order_title = 'Týdenní objednávka';
             $order_help = 'Jednoduchý výběr jídel bez zbytečností – vyberte položky a odešlete objednávku.';
             $order_submit_text = 'Odeslat týdenní výběr';
+        } elseif ($theme_variant === 'czech') {
+            $order_title = 'Objednávka české restaurace';
+            $order_help = 'Tradiční polední menu v tmavém stylu – vyberte dny i jídla a odešlete objednávku.';
+            $order_submit_text = 'Odeslat objednávku do restaurace';
         }
 
         ob_start();
@@ -4578,6 +4596,14 @@ JS;
                . '.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-item-controls{display:grid;grid-template-columns:1fr 84px}'
                . '.hsp-order-form--card.hsp-order-variant-minimal #hsp-order-submit{background:#fff;color:#27272a;border:1px dotted #71717a;box-shadow:none}'
                . '.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-contact,.hsp-order-form--card.hsp-order-variant-minimal .hsp-order-pricing{box-shadow:none;border-style:dotted;background:#fafafa}'
+               . '.hsp-order-form--card.hsp-order-variant-czech{font-family:"Trebuchet MS",Arial,sans-serif!important;background:linear-gradient(180deg,#1a1a1a,#111)!important;border:1px solid #b45309!important;color:#f3f4f6!important}'
+               . '.hsp-order-form--card.hsp-order-variant-czech h3{color:#f59e0b!important;text-transform:uppercase!important;letter-spacing:.05em!important}'
+               . '.hsp-order-form--card.hsp-order-variant-czech .hsp-order-help{color:#e5e7eb!important}'
+               . '.hsp-order-form--card.hsp-order-variant-czech .hsp-order-day{background:#181818!important;border-color:#b45309!important;box-shadow:none!important}'
+               . '.hsp-order-form--card.hsp-order-variant-czech .hsp-order-day h5{color:#f59e0b!important}'
+               . '.hsp-order-form--card.hsp-order-variant-czech .hsp-order-item{background:#111!important;border-color:#3f3f46!important;color:#f3f4f6!important}'
+               . '.hsp-order-form--card.hsp-order-variant-czech .hsp-order-contact,.hsp-order-form--card.hsp-order-variant-czech .hsp-order-pricing{background:#181818!important;border-color:#3f3f46!important;color:#f3f4f6!important}'
+               . '.hsp-order-form--card.hsp-order-variant-czech #hsp-order-submit{background:#b45309!important;border-color:#b45309!important;color:#fff!important}'
                . '@media (max-width:640px){.hsp-order-form--card{padding:14px 12px;overflow:hidden}.hsp-order-item{flex-direction:column;align-items:stretch}.hsp-order-item-controls{width:100%;display:grid;grid-template-columns:1fr 88px;gap:8px}.hsp-order-side{min-width:0;width:100%}.hsp-order-item input[type=number]{width:100%}.hsp-order-day{padding:10px}.hsp-order-grid{grid-template-columns:1fr}}';
         wp_register_style('hsp-order-inline', false, [], VERSION);
         wp_enqueue_style('hsp-order-inline');
@@ -5563,6 +5589,8 @@ JS;
                 echo '<div class="hsp-variant-badge">Moderní styl</div>';
             } elseif ($theme_variant === 'minimal') {
                 echo '<div class="hsp-variant-badge">Minimal styl</div>';
+            } elseif ($theme_variant === 'czech') {
+                echo '<div class="hsp-variant-badge">Česká restaurace</div>';
             }
 
             // COLLAPSED: zobrazíme jen jeden den (dnes, pokud spadá do zvoleného týdne; jinak pondělí)
@@ -5677,6 +5705,8 @@ if (dateEl){ dateEl.addEventListener("change", function(e){ e.preventDefault(); 
                 $wrap .= '<div class="hsp-variant-badge">Moderní styl</div>';
             } elseif ($theme_variant === 'minimal') {
                 $wrap .= '<div class="hsp-variant-badge">Minimal styl</div>';
+            } elseif ($theme_variant === 'czech') {
+                $wrap .= '<div class="hsp-variant-badge">Česká restaurace</div>';
             }
             if (!empty($a['heading'])) $wrap .= '<h3 class="hsp-single__title">'.esc_html($a['heading']).'</h3>';
             $wrap .= $html;
