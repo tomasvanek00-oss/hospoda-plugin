@@ -129,32 +129,44 @@ class Hospoda_Plugin {
         $css .= '.hsp-root .hsp-static .hsp-item{position:relative;padding-left:var(--hsp-static-bullet-offset)}';
         $css .= '.hsp-root .hsp-static .hsp-item::before{content:var(--hsp-static-bullet);display:var(--hsp-static-bullet-display);position:absolute;left:0;top:.95em;transform:translateY(-50%);color:var(--hsp-static-bullet-color);font-weight:700;font-size:.85em;line-height:1}';
         $css .= '.hsp-root .hsp-static .hsp-price{color:'.$static['price'].'}';
-        $css .= '.hsp-root .hsp-variant-badge{display:none;margin:0 0 10px;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;width:max-content}';
-        $css .= '.hsp-root.hsp-variant-modern{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif!important;background:linear-gradient(180deg,#f8fbff 0%,#e0ecff 100%)!important;padding:16px!important;border-radius:24px!important;border:1px solid #bfdbfe!important}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-variant-badge{display:inline-flex!important;background:#1e40af!important;color:#dbeafe!important}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-day{border-color:#93c5fd!important;background:#ffffff!important;border-radius:18px!important;box-shadow:0 12px 28px rgba(30,64,175,.14)!important}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-day__heading{font-size:1.16em!important;letter-spacing:.01em!important;background:linear-gradient(90deg,#0f172a,#1e40af)!important;color:#f8fafc!important;border-bottom:0!important;padding:14px 18px!important}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-grid{padding:12px 0!important;gap:6px 12px!important;border-bottom:1px solid #dbeafe!important;grid-template-columns:1fr!important;grid-template-areas:"price" "title" "sides"!important}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-title{font-weight:700!important;color:#0f172a!important}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-price{font-weight:800!important;color:#1d4ed8!important;font-size:1.03em!important;justify-self:start!important;text-align:left!important;display:inline-flex!important;background:#dbeafe!important;padding:2px 8px!important;border-radius:999px!important;width:max-content!important}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-menu-group{background:#eff6ff!important;border-color:#93c5fd!important;border-radius:18px!important}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-menu-group__title{text-transform:none!important;letter-spacing:.01em!important;color:#1e40af!important}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-static{background:#eff6ff!important;border-color:#93c5fd!important;border-radius:18px!important}';
-        $css .= '.hsp-root.hsp-variant-modern .hsp-toggle{border-radius:999px!important;padding:12px 20px!important;box-shadow:0 10px 20px rgba(30,64,175,.24)!important;font-weight:800!important}';
+        $css .= '.hsp-root .hsp-variant-badge{display:none!important}';
+        $css .= '.hsp-root.hsp-variant-modern{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif!important;background:linear-gradient(180deg,#f7faff 0%,#ddeafe 100%)!important;padding:20px!important;border-radius:28px!important;border:1px solid #bfdbfe!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-week{gap:18px!important}';
+        $css .= '@media (min-width:960px){.hsp-root.hsp-variant-modern .hsp-week{grid-template-columns:1.15fr .85fr!important}}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-week__nav{justify-content:flex-start!important;flex-wrap:wrap!important;background:#ffffff!important;border:1px solid #c7d2fe!important;border-radius:999px!important;padding:10px 14px!important;box-shadow:0 12px 28px rgba(37,99,235,.12)!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-nav__label{order:-1!important;width:100%!important;font-size:.92em!important;text-transform:uppercase!important;color:#1e3a8a!important;letter-spacing:.08em!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-day{border:0!important;background:linear-gradient(180deg,#ffffff,#f8fbff)!important;border-radius:22px!important;box-shadow:0 18px 36px rgba(30,64,175,.14)!important;overflow:hidden!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-day__heading{font-size:1.18em!important;letter-spacing:0!important;background:linear-gradient(135deg,#0f172a,#1d4ed8)!important;color:#f8fafc!important;border-bottom:0!important;padding:18px 20px!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-body{padding:10px 20px 16px!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-grid{grid-template-columns:1fr!important;grid-template-areas:"price" "title" "sides"!important;gap:8px!important;padding:14px 0!important;border-bottom:1px solid #dbeafe!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-title{font-weight:700!important;font-size:1.07em!important;color:#0f172a!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-sides{font-size:.93em!important;color:#475569!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-price{justify-self:start!important;text-align:left!important;display:inline-flex!important;align-items:center!important;background:#dbeafe!important;color:#1d4ed8!important;padding:4px 10px!important;border-radius:999px!important;font-weight:800!important;letter-spacing:.02em!important;width:max-content!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-menu-groups{gap:14px!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-menu-group{background:#eff6ff!important;border:1px solid #93c5fd!important;border-radius:20px!important;padding:18px 20px!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-menu-group__title{display:block!important;color:#1e40af!important;font-size:1.1em!important;letter-spacing:0!important;text-transform:none!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-menu-group__price{display:inline-flex!important;margin:8px 0 0!important;background:#1d4ed8!important;color:#fff!important;padding:3px 10px!important;border-radius:999px!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-static{background:#eff6ff!important;border:1px solid #93c5fd!important;border-radius:22px!important;padding:20px!important}';
+        $css .= '.hsp-root.hsp-variant-modern .hsp-toggle{border-radius:999px!important;padding:13px 22px!important;box-shadow:0 10px 24px rgba(30,64,175,.24)!important;font-weight:800!important}';
 
-        $css .= '.hsp-root.hsp-variant-minimal{font-family:Georgia,"Times New Roman",serif!important;background:#ffffff!important;padding:8px!important;border:1px dotted #a1a1aa!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-variant-badge{display:inline-flex!important;background:#f4f4f5!important;color:#3f3f46!important;border:1px dotted #71717a!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-day{background:#ffffff!important;border-color:#a1a1aa!important;border-width:1px!important;border-style:dotted!important;border-radius:4px!important;box-shadow:none!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-day__heading{background:transparent!important;border-bottom:1px dotted #a1a1aa!important;text-transform:uppercase!important;letter-spacing:.10em!important;color:#27272a!important;padding:10px 12px!important;font-size:.93em!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-body{padding:0 12px 10px!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-grid{border-bottom:1px solid #e4e4e7!important;grid-template-columns:1fr auto!important;grid-template-areas:"title title" "sides price"!important;gap:4px 10px!important;padding:10px 0!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-title{font-weight:500!important;font-size:1.01em!important;font-style:italic!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-price{justify-self:end!important;text-align:right!important;color:#52525b!important;font-size:.95em!important;border-left:1px dotted #a1a1aa!important;padding-left:8px!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-menu-group{box-shadow:none!important;border-style:dotted!important;background:#fafafa!important;border-radius:4px!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-static{box-shadow:none!important;border-style:dotted!important;background:#fafafa!important;border-radius:4px!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-toggle{border-style:dotted!important;box-shadow:none!important;background:#fff!important;color:#18181b!important;border-color:#71717a!important;border-radius:4px!important}';
+        $css .= '.hsp-root.hsp-variant-minimal{font-family:Georgia,"Times New Roman",serif!important;background:#fff!important;padding:0!important;border:0!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-week{gap:30px!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-week__nav{justify-content:space-between!important;align-items:flex-end!important;gap:8px!important;padding:0 0 12px!important;border-bottom:1px solid #d4d4d8!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-nav__btn,.hsp-root.hsp-variant-minimal .hsp-nav__btn[type=button]{border:0!important;border-bottom:1px solid #71717a!important;border-radius:0!important;background:transparent!important;padding:4px 0!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-day{background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-day__heading{background:transparent!important;border-bottom:1px solid #a1a1aa!important;text-transform:none!important;letter-spacing:0!important;color:#18181b!important;padding:0 0 10px!important;font-size:1.45em!important;font-weight:500!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-body{padding:0!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-grid{border-bottom:1px solid #e4e4e7!important;grid-template-columns:minmax(0,1fr) auto!important;grid-template-areas:"title price" "sides price"!important;gap:4px 14px!important;padding:12px 0!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-title{font-weight:500!important;font-size:1.08em!important;font-style:normal!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-sides{font-size:.9em!important;color:#71717a!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-price{justify-self:end!important;text-align:right!important;color:#3f3f46!important;font-size:.95em!important;border-left:0!important;padding-left:0!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-menu-group{background:transparent!important;border:1px solid #d4d4d8!important;border-radius:0!important;box-shadow:none!important;padding:14px 0!important;border-left:0!important;border-right:0!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-menu-group__title{display:flex!important;justify-content:space-between!important;text-transform:none!important;letter-spacing:0!important;color:#18181b!important;font-size:1em!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-static{background:transparent!important;border:1px solid #d4d4d8!important;border-left:0!important;border-right:0!important;border-radius:0!important;box-shadow:none!important;padding:16px 0!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-static__title{text-transform:none!important;letter-spacing:0!important;font-size:1.2em!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-toggle{border:1px solid #71717a!important;box-shadow:none!important;background:#fff!important;color:#18181b!important;border-radius:0!important;padding:10px 16px!important}';
+
         $css .= '.hsp-root.hsp-variant-czech{font-family:"Trebuchet MS",Arial,sans-serif!important;background:linear-gradient(180deg,#1a1a1a,#101010)!important;padding:14px!important;border:1px solid #2f2f2f!important;border-radius:10px!important}';
-        $css .= '.hsp-root.hsp-variant-czech .hsp-variant-badge{display:inline-flex!important;background:#111!important;color:#eab308!important;border:1px solid #b45309!important}';
         $css .= '.hsp-root.hsp-variant-czech .hsp-day{background:#202020!important;border:1px solid #3a3a3a!important;border-radius:10px!important;box-shadow:0 3px 12px rgba(0,0,0,.45)!important}';
         $css .= '.hsp-root.hsp-variant-czech .hsp-day__heading{background:#111!important;color:#f5f5f5!important;border-bottom:1px solid #b45309!important;letter-spacing:.04em!important;text-transform:uppercase!important}';
         $css .= '.hsp-root.hsp-variant-czech .hsp-body,.hsp-root.hsp-variant-czech .hsp-title{color:#f3f4f6!important}';
@@ -5585,13 +5597,6 @@ JS;
             echo $this->inline_css_tag();
             echo '<div id="hsp-menu"></div>';
             echo '<div class="hsp-root hsp-variant-' . esc_attr($theme_variant) . '">';
-            if ($theme_variant === 'modern') {
-                echo '<div class="hsp-variant-badge">Moderní styl</div>';
-            } elseif ($theme_variant === 'minimal') {
-                echo '<div class="hsp-variant-badge">Minimal styl</div>';
-            } elseif ($theme_variant === 'czech') {
-                echo '<div class="hsp-variant-badge">Česká restaurace</div>';
-            }
 
             // COLLAPSED: zobrazíme jen jeden den (dnes, pokud spadá do zvoleného týdne; jinak pondělí)
             if (!$manual_week_start && $effective_today instanceof \DateTimeImmutable) {
@@ -5701,13 +5706,6 @@ if (dateEl){ dateEl.addEventListener("change", function(e){ e.preventDefault(); 
             $theme = $this->get_frontend_theme_settings();
             $theme_variant = $this->normalize_theme_variant((string)($theme['variant'] ?? 'classic'));
             $wrap .= '<div class="hsp-root hsp-variant-' . esc_attr($theme_variant) . '"><div class="hsp-single">';
-            if ($theme_variant === 'modern') {
-                $wrap .= '<div class="hsp-variant-badge">Moderní styl</div>';
-            } elseif ($theme_variant === 'minimal') {
-                $wrap .= '<div class="hsp-variant-badge">Minimal styl</div>';
-            } elseif ($theme_variant === 'czech') {
-                $wrap .= '<div class="hsp-variant-badge">Česká restaurace</div>';
-            }
             if (!empty($a['heading'])) $wrap .= '<h3 class="hsp-single__title">'.esc_html($a['heading']).'</h3>';
             $wrap .= $html;
             $static_html = $this->render_static_menu_block();
