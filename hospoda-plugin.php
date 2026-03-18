@@ -149,22 +149,22 @@ class Hospoda_Plugin {
         $css .= '.hsp-root.hsp-variant-modern .hsp-static{background:#eff6ff!important;border:1px solid #93c5fd!important;border-radius:22px!important;padding:20px!important}';
         $css .= '.hsp-root.hsp-variant-modern .hsp-toggle{border-radius:999px!important;padding:13px 22px!important;box-shadow:0 10px 24px rgba(30,64,175,.24)!important;font-weight:800!important}';
 
-        $css .= '.hsp-root.hsp-variant-minimal{font-family:Georgia,"Times New Roman",serif!important;background:#fff!important;padding:0!important;border:0!important}';
+        $css .= '.hsp-root.hsp-variant-minimal{font-family:"Palatino Linotype","Book Antiqua",Palatino,Georgia,serif!important;background:transparent!important;padding:0!important;border:0!important;color:inherit!important}';
         $css .= '.hsp-root.hsp-variant-minimal .hsp-week{gap:30px!important}';
         $css .= '.hsp-root.hsp-variant-minimal .hsp-week__nav{justify-content:space-between!important;align-items:flex-end!important;gap:8px!important;padding:0 0 12px!important;border-bottom:1px solid #d4d4d8!important}';
         $css .= '.hsp-root.hsp-variant-minimal .hsp-nav__btn,.hsp-root.hsp-variant-minimal .hsp-nav__btn[type=button]{border:0!important;border-bottom:1px solid #71717a!important;border-radius:0!important;background:transparent!important;padding:4px 0!important}';
         $css .= '.hsp-root.hsp-variant-minimal .hsp-day{background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-day__heading{background:transparent!important;border-bottom:1px solid #a1a1aa!important;text-transform:none!important;letter-spacing:0!important;color:#18181b!important;padding:0 0 10px!important;font-size:1.45em!important;font-weight:500!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-day__heading{background:transparent!important;border-bottom:1px solid rgba(161,161,170,.75)!important;text-transform:none!important;letter-spacing:0!important;color:inherit!important;padding:0 0 10px!important;font-size:1.45em!important;font-weight:500!important}';
         $css .= '.hsp-root.hsp-variant-minimal .hsp-body{padding:0!important}';
         $css .= '.hsp-root.hsp-variant-minimal .hsp-grid{border-bottom:1px solid #e4e4e7!important;grid-template-columns:minmax(0,1fr) auto!important;grid-template-areas:"title price" "sides price"!important;gap:4px 14px!important;padding:12px 0!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-title{font-weight:500!important;font-size:1.08em!important;font-style:normal!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-title{font-weight:500!important;font-size:1.08em!important;font-style:normal!important;color:inherit!important}';
         $css .= '.hsp-root.hsp-variant-minimal .hsp-sides{font-size:.9em!important;color:#71717a!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-price{justify-self:end!important;text-align:right!important;color:#3f3f46!important;font-size:.95em!important;border-left:0!important;padding-left:0!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-price{justify-self:end!important;text-align:right!important;color:#52525b!important;font-size:.95em!important;border-left:0!important;padding-left:0!important}';
         $css .= '.hsp-root.hsp-variant-minimal .hsp-menu-group{background:transparent!important;border:1px solid #d4d4d8!important;border-radius:0!important;box-shadow:none!important;padding:14px 0!important;border-left:0!important;border-right:0!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-menu-group__title{display:flex!important;justify-content:space-between!important;text-transform:none!important;letter-spacing:0!important;color:#18181b!important;font-size:1em!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-menu-group__title{display:flex!important;justify-content:space-between!important;text-transform:none!important;letter-spacing:0!important;color:inherit!important;font-size:1em!important}';
         $css .= '.hsp-root.hsp-variant-minimal .hsp-static{background:transparent!important;border:1px solid #d4d4d8!important;border-left:0!important;border-right:0!important;border-radius:0!important;box-shadow:none!important;padding:16px 0!important}';
         $css .= '.hsp-root.hsp-variant-minimal .hsp-static__title{text-transform:none!important;letter-spacing:0!important;font-size:1.2em!important}';
-        $css .= '.hsp-root.hsp-variant-minimal .hsp-toggle{border:1px solid #71717a!important;box-shadow:none!important;background:#fff!important;color:#18181b!important;border-radius:0!important;padding:10px 16px!important}';
+        $css .= '.hsp-root.hsp-variant-minimal .hsp-toggle{border:1px solid rgba(113,113,122,.85)!important;box-shadow:none!important;background:transparent!important;color:inherit!important;border-radius:0!important;padding:10px 16px!important}';
 
         $css .= '.hsp-root.hsp-variant-czech{font-family:"Trebuchet MS",Arial,sans-serif!important;background:linear-gradient(180deg,#1a1a1a,#101010)!important;padding:14px!important;border:1px solid #2f2f2f!important;border-radius:10px!important}';
         $css .= '.hsp-root.hsp-variant-czech .hsp-day{background:#202020!important;border:1px solid #3a3a3a!important;border-radius:10px!important;box-shadow:0 3px 12px rgba(0,0,0,.45)!important}';
