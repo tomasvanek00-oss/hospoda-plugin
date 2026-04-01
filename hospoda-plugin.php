@@ -2704,6 +2704,7 @@ JS;
             <div class="hs-week-grid">
               <?php for($i=0;$i<$day_count;$i++){ $this->render_week_day_block($i,$labels[$i] ?? '',$dates[$i] ?? '',$sides,$days_data[$i] ?? [],$use_sides,$pricing_mode,$default_menu_groups); } ?>
             </div>
+            <input type="hidden" name="hsp_week_form_end" value="1">
             <div class="hs-week-actions">
               <button class="button button-primary">Uložit celý týden</button>
               <button type="submit" form="hs-week-export" class="button">Exportovat PDF</button>
@@ -3197,6 +3198,16 @@ JS;
     public function handle_save_week() {
         if(!current_user_can('edit_posts')) wp_die();
         check_admin_referer('hospoda_save_week');
+
+        $post_vars_count = count($_POST, COUNT_RECURSIVE);
+        $max_input_vars = (int) ini_get('max_input_vars');
+        $missing_form_end_marker = !isset($_POST['hsp_week_form_end']) || sanitize_text_field((string) $_POST['hsp_week_form_end']) !== '1';
+        if ($missing_form_end_marker || ($max_input_vars > 0 && $post_vars_count >= $max_input_vars)) {
+            $limit_label = $max_input_vars > 0 ? (string) $max_input_vars : 'neznámý';
+            wp_redirect(admin_url('admin.php?page=hospoda-week&week_error=' . rawurlencode('Formulář je příliš rozsáhlý pro server (max_input_vars=' . $limit_label . '). Data nebyla uložena, aby nedošlo k částečnému přepsání. Kontaktujte hosting a zvyšte max_input_vars alespoň na 3000.')));
+            exit;
+        }
+
         $week_start = sanitize_text_field($_POST['week_start'] ?? date('Y-m-d'));
         $ts = strtotime($week_start); $dow = (int)date('N', $ts); $monday = date('Y-m-d', strtotime('-'.($dow-1).' days', $ts));
         $week = isset($_POST['week']) ? wp_unslash($_POST['week']) : [];
